@@ -12,6 +12,19 @@ const API = {
       body: JSON.stringify(body)
     })
     return res.json()
+  },
+  async delete(path) {
+    const res = await fetch(`${this.base}${path}`, { method: 'DELETE' })
+    return res.json()
+  },
+  async downloadFile(url, filename) {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(link.href)
   }
 }
 export { API }

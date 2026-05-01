@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Table
 from sqlalchemy.sql import func
 from database import Base
 
@@ -23,6 +23,21 @@ class Subscription(Base):
     last_checked = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
 
+playlist_music = Table(
+    'playlist_music', Base.metadata,
+    Column('playlist_id', Integer, ForeignKey('playlists.id'), primary_key=True),
+    Column('music_id', Integer, ForeignKey('music.id'), primary_key=True),
+    Column('position', Integer, default=0)
+)
+
+class Playlist(Base):
+    __tablename__ = "playlists"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, server_default=func.now())
+    songs = Column(JSON, default=[])
+
 class Video(Base):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
@@ -32,6 +47,9 @@ class Video(Base):
     url = Column(String(500))
     downloaded = Column(Boolean, default=False)
     added_by = Column(Integer, ForeignKey("users.id"))
+    watched_at = Column(DateTime, nullable=True)
+    keep_flag = Column(Boolean, default=False)
+    quality = Column(String(20), default="best")
     created_at = Column(DateTime, server_default=func.now())
 
 class Music(Base):
@@ -40,6 +58,7 @@ class Music(Base):
     url = Column(String(500))
     title = Column(String(300))
     artist = Column(String(200))
+    album_art = Column(String(500))
     is_playlist = Column(Boolean, default=False)
     playlist_id = Column(String(50))
     downloaded = Column(Boolean, default=False)
@@ -54,4 +73,5 @@ class Download(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     status = Column(String(20), default="pending")
     progress = Column(Integer, default=0)
+    file_path = Column(String(500))
     created_at = Column(DateTime, server_default=func.now())
