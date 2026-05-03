@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
 import re
+import os
 from contextlib import asynccontextmanager
 
 from database import engine, get_db, Base

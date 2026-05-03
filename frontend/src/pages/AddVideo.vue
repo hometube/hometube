@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const props = defineProps(['user'])
-const emit = defineEmits(['back'])
+const router = useRouter()
 
 const url = ref('')
 const quality = ref('best')
@@ -41,9 +42,9 @@ const add = async () => {
 
 <template>
   <div class="p-4 pt-16" v-if="user">
-    <button @click="emit('back')" class="text-gray-400 mb-4">
-      <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
-    </button>
+    <button @click="router.push('/video')" class="text-gray-400 mb-4">
+       <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
+     </button>
     <h2 class="text-xl font-bold mb-4">Add Video</h2>
     <input v-model="url" @blur="fetchFormats" placeholder="Paste YouTube video URL" class="w-full p-3 mb-3 bg-gray-800 border border-gray-700 rounded-lg text-white" />
     <div class="mb-3">

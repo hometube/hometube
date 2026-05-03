@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const props = defineProps(['user'])
-const emit = defineEmits(['back'])
+const router = useRouter()
 
 const url = ref('')
 const mode = ref('select')
@@ -64,9 +65,9 @@ const subscribe = async () => {
 
 <template>
   <div class="p-4 pt-16" v-if="user">
-    <button @click="emit('back')" class="text-gray-400 mb-4">
-      <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
-    </button>
+    <button @click="router.push('/video')" class="text-gray-400 mb-4">
+       <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
+     </button>
     <h2 class="text-xl font-bold mb-4">Add Channel</h2>
     <input v-model="url" placeholder="Paste YouTube channel URL" class="w-full p-3 mb-3 bg-gray-800 border border-gray-700 rounded-lg text-white" />
     <div class="flex gap-2 mb-3">

@@ -1,12 +1,15 @@
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import WaveformVisual from '../components/WaveformVisual.vue'
 
-const props = defineProps(['playlist', 'user', 'songs'])
-const emit = defineEmits(['close'])
+const props = defineProps(['user'])
+const router = useRouter()
+const route = useRoute()
 
+const playlist = ref(null)
 const displaySongs = ref([])
 const originalOrder = ref([])
 const currentIndex = ref(-1)
@@ -17,18 +20,32 @@ const audio = ref(null)
 const currentTime = ref(0)
 const duration = ref(0)
 
-const loadSongs = async () => {
-  let musicList = props.songs
-  if (!musicList && props.playlist) {
-    const allMusic = await API.get('/music', { user_id: props.user.id })
-    musicList = (props.playlist.songs || [])
-      .map(s => allMusic.find(m => m.id === s.music_id))
-      .filter(Boolean)
+const loadPlaylist = async () => {
+  const { id } = route.params
+  if (!id || !props.user) return
+
+  if (id === 'my-songs') {
+    const songs = await API.get('/music', { user_id: props.user.id })
+    playlist.value = { type: 'virtual', name: 'My Songs' }
+    originalOrder.value = songs.filter(m => m.added_by === props.user.id)
+  } else if (id === 'all-songs') {
+    const songs = await API.get('/music', { user_id: props.user.id })
+    playlist.value = { type: 'virtual', name: 'All Songs' }
+    originalOrder.value = songs
+  } else {
+    const playlists = await API.get('/playlists', { user_id: props.user.id })
+    const pl = playlists.find(p => p.id === parseInt(id))
+    if (pl) {
+      playlist.value = pl
+      const allMusic = await API.get('/music', { user_id: props.user.id })
+      originalOrder.value = (pl.songs || [])
+        .map(s => allMusic.find(m => m.id === s.music_id))
+        .filter(Boolean)
+    }
   }
-  if (!musicList) return
-  originalOrder.value = [...musicList]
-  displaySongs.value = [...musicList]
-  shuffled.value = JSON.parse(localStorage.getItem(`playlist_${props.playlist?.id}_shuffled`) || 'false')
+
+  displaySongs.value = [...originalOrder.value]
+  shuffled.value = JSON.parse(localStorage.getItem(`playlist_${id}_shuffled`) || 'false')
   if (shuffled.value) shuffleOrder()
 }
 
@@ -41,6 +58,11 @@ const shuffleOrder = () => {
   const currentSongId = displaySongs.value[currentIndex.value]?.id
   displaySongs.value = arr
   currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
+}
+
+const getPlaylistId = () => {
+  const { id } = route.params
+  return id || 'unknown'
 }
 
 const playSong = (index) => {
@@ -86,9 +108,7 @@ const prev = () => {
 
 const toggleShuffle = () => {
   shuffled.value = !shuffled.value
-  if (props.playlist) {
-    localStorage.setItem(`playlist_${props.playlist.id}_shuffled`, shuffled.value.toString())
-  }
+  localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, shuffled.value.toString())
   if (shuffled.value) {
     shuffleOrder()
   } else {
@@ -128,9 +148,9 @@ const addToPlaylist = async (musicId, targetPlaylistId) => {
 }
 
 const removeFromPlaylist = async (musicId) => {
-  if (!props.playlist) return
-  await API.delete(`/playlists/${props.playlist.id}/remove/${musicId}`)
-  loadSongs()
+  if (!playlist.value) return
+  await API.delete(`/playlists/${playlist.value.id}/remove/${musicId}`)
+  loadPlaylist()
 }
 
 const close = () => {
@@ -138,7 +158,7 @@ const close = () => {
     audio.value.pause()
     audio.value.src = ''
   }
-  emit('close')
+  router.push('/music')
 }
 
 onMounted(() => {
@@ -150,7 +170,11 @@ onMounted(() => {
   audio.value.addEventListener('timeupdate', () => {
     currentTime.value = audio.value.currentTime
   })
-  loadSongs()
+  loadPlaylist()
+})
+
+watch(() => route.params.id, () => {
+  loadPlaylist()
 })
 
 onUnmounted(() => {

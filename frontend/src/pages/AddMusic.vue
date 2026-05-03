@@ -1,10 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const props = defineProps(['user'])
-const emit = defineEmits(['back'])
+const router = useRouter()
 
 const url = ref('')
 const newPlaylistName = ref('')
@@ -41,7 +42,7 @@ const add = async () => {
   }
   url.value = ''
   loading.value = false
-  emit('back')
+  router.push('/music')
 }
 
 onMounted(loadPlaylists)
@@ -49,9 +50,9 @@ onMounted(loadPlaylists)
 
 <template>
   <div class="p-4 pt-16" v-if="user">
-    <button @click="emit('back')" class="text-gray-400 mb-4">
-      <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
-    </button>
+    <button @click="router.push('/music')" class="text-gray-400 mb-4">
+       <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
+     </button>
     <h2 class="text-xl font-bold mb-4">Add Music</h2>
     <input v-model="url" @blur="fetchInfo" placeholder="Paste song or playlist URL" class="w-full p-3 mb-3 bg-gray-800 border border-gray-700 rounded-lg text-white" />
 
