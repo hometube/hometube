@@ -367,4 +367,15 @@ def serve_music(filename: str):
 
 # Serve frontend
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
-app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
+@app.get("/{fullpath:path}")
+async def serve_spa(fullpath: str):
+    # Try to serve static file first
+    file_path = os.path.join(frontend_dist, fullpath)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # SPA fallback - return index.html for client-side routing
+    index_path = os.path.join(frontend_dist, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    raise HTTPException(404)
