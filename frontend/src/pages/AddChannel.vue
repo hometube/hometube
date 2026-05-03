@@ -1,75 +1,70 @@
-<script>
+<script setup>
 import { ref } from 'vue'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-export default {
-  components: { FontAwesomeIcon },
-  props: ['user'],
-  setup(props, { emit }) {
-    const url = ref('')
-    const mode = ref('select')
-    const channelVideos = ref([])
-    const selectedVideos = ref([])
-    const channelId = ref(null)
-    const loading = ref(false)
-    const quality = ref('best')
-    const subCriteria = ref({ keywords: '', min_length: null, max_length: null, quality: 'best' })
+const props = defineProps(['user'])
+const emit = defineEmits(['back'])
 
-    const loadChannelVideos = async () => {
-      if (!url.value) return
-      loading.value = true
-      const channels = await API.get('/channels')
-      let chan = channels.find(c => c.url === url.value)
-      if (!chan) {
-        chan = await API.post('/channels/add', { url: url.value })
-      }
-      channelId.value = chan.id
-      channelVideos.value = await API.get('/channels/' + chan.id + '/videos')
-      loading.value = false
-    }
+const url = ref('')
+const mode = ref('select')
+const channelVideos = ref([])
+const selectedVideos = ref([])
+const channelId = ref(null)
+const loading = ref(false)
+const quality = ref('best')
+const subCriteria = ref({ keywords: '', min_length: null, max_length: null, quality: 'best' })
 
-    const toggleSelect = (vid) => {
-      const idx = selectedVideos.value.findIndex(v => v.id === vid.id)
-      if (idx >= 0) {
-        selectedVideos.value.splice(idx, 1)
-      } else {
-        selectedVideos.value.push(vid)
-      }
-    }
-
-    const downloadSelected = async () => {
-      loading.value = true
-      for (const vid of selectedVideos.value) {
-        const vidUrl = vid.url || 'https://youtube.com/watch?v=' + vid.id
-        await API.post('/videos/add', { url: vidUrl, user_id: props.user.id, quality: quality.value })
-        const vids = await API.get('/videos', { user_id: props.user.id })
-        const newVid = vids[0]
-        if (newVid) await API.post('/videos/' + newVid.id + '/download', { quality: quality.value })
-      }
-      selectedVideos.value = []
-      loading.value = false
-    }
-
-    const subscribe = async () => {
-      if (!channelId.value) return
-      const criteria = {}
-      if (subCriteria.value.keywords) criteria.keywords = subCriteria.value.keywords.split(',').map(k => k.trim())
-      if (subCriteria.value.min_length) criteria.min_length = parseInt(subCriteria.value.min_length)
-      if (subCriteria.value.max_length) criteria.max_length = parseInt(subCriteria.value.max_length)
-      criteria.quality = subCriteria.value.quality
-      await API.post('/channels/' + channelId.value + '/subscribe', { user_id: props.user.id, criteria: criteria })
-      alert('Subscribed!')
-    }
-
-    return { url, mode, channelVideos, selectedVideos, loading, quality, subCriteria, loadChannelVideos, toggleSelect, downloadSelected, subscribe }
+const loadChannelVideos = async () => {
+  if (!url.value) return
+  loading.value = true
+  const channels = await API.get('/channels')
+  let chan = channels.find(c => c.url === url.value)
+  if (!chan) {
+    chan = await API.post('/channels/add', { url: url.value })
   }
+  channelId.value = chan.id
+  channelVideos.value = await API.get('/channels/' + chan.id + '/videos')
+  loading.value = false
+}
+
+const toggleSelect = (vid) => {
+  const idx = selectedVideos.value.findIndex(v => v.id === vid.id)
+  if (idx >= 0) {
+    selectedVideos.value.splice(idx, 1)
+  } else {
+    selectedVideos.value.push(vid)
+  }
+}
+
+const downloadSelected = async () => {
+  loading.value = true
+  for (const vid of selectedVideos.value) {
+    const vidUrl = vid.url || 'https://youtube.com/watch?v=' + vid.id
+    await API.post('/videos/add', { url: vidUrl, user_id: props.user.id, quality: quality.value })
+    const vids = await API.get('/videos', { user_id: props.user.id })
+    const newVid = vids[0]
+    if (newVid) await API.post('/videos/' + newVid.id + '/download', { quality: quality.value })
+  }
+  selectedVideos.value = []
+  loading.value = false
+}
+
+const subscribe = async () => {
+  if (!channelId.value) return
+  const criteria = {}
+  if (subCriteria.value.keywords) criteria.keywords = subCriteria.value.keywords.split(',').map(k => k.trim())
+  if (subCriteria.value.min_length) criteria.min_length = parseInt(subCriteria.value.min_length)
+  if (subCriteria.value.max_length) criteria.max_length = parseInt(subCriteria.value.max_length)
+  criteria.quality = subCriteria.value.quality
+  await API.post('/channels/' + channelId.value + '/subscribe', { user_id: props.user.id, criteria: criteria })
+  alert('Subscribed!')
 }
 </script>
 
 <template>
   <div class="p-4 pt-16" v-if="user">
-    <button @click="$emit('back')" class="text-gray-400 mb-4">
+    <button @click="emit('back')" class="text-gray-400 mb-4">
       <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
     </button>
     <h2 class="text-xl font-bold mb-4">Add Channel</h2>

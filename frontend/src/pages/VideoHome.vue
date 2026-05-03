@@ -1,86 +1,80 @@
-<script>
+<script setup>
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 
-export default {
-  components: { FontAwesomeIcon },
-  props: ['user'],
-  setup(props, { emit }) {
-    const videos = ref([])
-    const filteredVideos = ref([])
-    const currentFilter = ref('my-feed')
-    const playingVideo = ref(null)
-    const playerRef = ref(null)
-    const player = ref(null)
-    const audioMode = ref(false)
-    const wakeLock = ref(null)
+const props = defineProps(['user'])
 
-    const filters = [
-      { id: 'my-feed', label: 'My Feed' },
-      { id: 'all', label: 'All Videos' },
-      { id: 'unwatched', label: 'Unwatched' }
-    ]
+const videos = ref([])
+const filteredVideos = ref([])
+const currentFilter = ref('my-feed')
+const playingVideo = ref(null)
+const playerRef = ref(null)
+const player = ref(null)
+const audioMode = ref(false)
+const wakeLock = ref(null)
 
-    const load = async () => {
-      if (!props.user) return
-      const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
-      const data = await API.get('/videos', { user_id: props.user.id, filter })
-      videos.value = data
-      applyFilter()
-    }
+const filters = [
+  { id: 'my-feed', label: 'My Feed' },
+  { id: 'all', label: 'All Videos' },
+  { id: 'unwatched', label: 'Unwatched' }
+]
 
-    const applyFilter = () => {
-      if (currentFilter.value === 'my-feed') {
-        filteredVideos.value = videos.value.filter(v => v.added_by === props.user.id)
-      } else {
-        filteredVideos.value = videos.value
-      }
-    }
+const load = async () => {
+  if (!props.user) return
+  const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
+  const data = await API.get('/videos', { user_id: props.user.id, filter })
+  videos.value = data
+  applyFilter()
+}
 
-    const setFilter = (filter) => {
-      currentFilter.value = filter
-      load()
-    }
-
-    const playVideo = async (vid) => {
-      playingVideo.value = vid
-      await API.post(`/videos/${vid.id}/watch`, { watched: true })
-      await nextTick()
-      if (playerRef.value && !player.value) {
-        player.value = new Plyr(playerRef.value, {
-          controls: ['play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'speed', 'fullscreen'],
-          speed: [0.5, 0.75, 1, 1.25, 1.5, 2]
-        })
-      }
-      load()
-    }
-
-    const toggleAudioMode = async () => {
-      audioMode.value = !audioMode.value
-      if (audioMode.value && 'wakeLock' in navigator) {
-        try {
-          wakeLock.value = await navigator.wakeLock.request('screen')
-        } catch (e) {}
-      } else if (!audioMode.value && wakeLock.value) {
-        wakeLock.value.release()
-        wakeLock.value = null
-      }
-    }
-
-    const toggleKeep = async (vid) => {
-      await API.post(`/videos/${vid.id}/keep`, { keep: !vid.keep_flag })
-      load()
-    }
-
-    watch(() => props.user, load, { immediate: true })
-    onMounted(load)
-
-    return { videos, filteredVideos, currentFilter, filters, setFilter, playingVideo, playerRef, playVideo, toggleAudioMode, audioMode, toggleKeep }
+const applyFilter = () => {
+  if (currentFilter.value === 'my-feed') {
+    filteredVideos.value = videos.value.filter(v => v.added_by === props.user.id)
+  } else {
+    filteredVideos.value = videos.value
   }
 }
+
+const setFilter = (filter) => {
+  currentFilter.value = filter
+  load()
+}
+
+const playVideo = async (vid) => {
+  playingVideo.value = vid
+  await API.post(`/videos/${vid.id}/watch`, { watched: true })
+  await nextTick()
+  if (playerRef.value && !player.value) {
+    player.value = new Plyr(playerRef.value, {
+      controls: ['play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'speed', 'fullscreen'],
+      speed: [0.5, 0.75, 1, 1.25, 1.5, 2]
+    })
+  }
+  load()
+}
+
+const toggleAudioMode = async () => {
+  audioMode.value = !audioMode.value
+  if (audioMode.value && 'wakeLock' in navigator) {
+    try {
+      wakeLock.value = await navigator.wakeLock.request('screen')
+    } catch (e) {}
+  } else if (!audioMode.value && wakeLock.value) {
+    wakeLock.value.release()
+    wakeLock.value = null
+  }
+}
+
+const toggleKeep = async (vid) => {
+  await API.post(`/videos/${vid.id}/keep`, { keep: !vid.keep_flag })
+  load()
+}
+
+watch(() => props.user, load, { immediate: true })
+onMounted(load)
 </script>
 
 <template>

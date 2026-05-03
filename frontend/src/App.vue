@@ -1,4 +1,4 @@
-<script>
+<script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRedo, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck, faList, faTv, faHeadphones, faSave, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
@@ -14,113 +14,105 @@ import PlaylistView from './pages/PlaylistView.vue'
 
 library.add(faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRedo, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck, faList, faTv, faHeadphones, faSave, faArrowLeft)
 
-export default {
-  components: { FontAwesomeIcon, UserPage, VideoHome, AddVideo, AddChannel, MusicHome, AddMusic, PlaylistView },
-  setup() {
-    const currentUser = ref(JSON.parse(localStorage.getItem('user') || 'null'))
-    const savedState = JSON.parse(localStorage.getItem('hometube_state') || '{}')
-    const activeTab = ref(savedState.activeTab || (currentUser.value ? 'video' : 'user'))
-    const videoSubPage = ref(savedState.videoSubPage || 'home')
-    const musicSubPage = ref(savedState.musicSubPage || 'home')
-    const selectedPlaylist = ref(null)
-    const selectedPlaylistId = ref(savedState.selectedPlaylistId || null)
-    const navOpen = ref(false)
-    const installPrompt = ref(null)
-    const showInstall = ref(false)
+const currentUser = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+const savedState = JSON.parse(localStorage.getItem('hometube_state') || '{}')
+const activeTab = ref(savedState.activeTab || (currentUser.value ? 'video' : 'user'))
+const videoSubPage = ref(savedState.videoSubPage || 'home')
+const musicSubPage = ref(savedState.musicSubPage || 'home')
+const selectedPlaylist = ref(null)
+const selectedPlaylistId = ref(savedState.selectedPlaylistId || null)
+const navOpen = ref(false)
+const installPrompt = ref(null)
+const showInstall = ref(false)
 
-    const mode = computed(() => activeTab.value)
-    const modeLabel = computed(() => activeTab.value === 'video' ? 'Video' : 'Music')
+const mode = computed(() => activeTab.value)
+const modeLabel = computed(() => activeTab.value === 'video' ? 'Video' : 'Music')
 
-    const saveState = () => {
-      const state = {
-        activeTab: activeTab.value,
-        videoSubPage: videoSubPage.value,
-        musicSubPage: musicSubPage.value,
-        selectedPlaylistId: selectedPlaylist.value?.id || null
-      }
-      localStorage.setItem('hometube_state', JSON.stringify(state))
-      if (selectedPlaylist.value?.type === 'virtual') {
-        localStorage.setItem('hometube_virtual_view', JSON.stringify({ type: 'virtual', name: selectedPlaylist.value.name }))
-      } else {
-        localStorage.removeItem('hometube_virtual_view')
-      }
-    }
-
-    const setUser = (user) => {
-      currentUser.value = user
-      localStorage.setItem('user', JSON.stringify(user))
-      activeTab.value = 'video'
-      saveState()
-    }
-
-    const navigate = (tab, subPage = null) => {
-      activeTab.value = tab
-      if (subPage) {
-        if (tab === 'video') videoSubPage.value = subPage
-        if (tab === 'music') musicSubPage.value = subPage
-      }
-      navOpen.value = false
-      saveState()
-    }
-
-    const openPlaylist = async (playlist) => {
-      selectedPlaylist.value = playlist
-      navOpen.value = false
-      if (playlist.id) {
-        saveState()
-      }
-    }
-
-    const closePlaylist = () => {
-      selectedPlaylist.value = null
-      saveState()
-    }
-
-    const installApp = async () => {
-      if (!installPrompt.value) return
-      installPrompt.value.prompt()
-      const { outcome } = await installPrompt.value.userChoice
-      if (outcome === 'accepted') installPrompt.value = null
-      showInstall.value = false
-    }
-
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault()
-      installPrompt.value = e
-      showInstall.value = true
-    }
-
-    onMounted(() => {
-      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      if (window.matchMedia('(display-mode: standalone)').matches) showInstall.value = false
-
-      // Restore virtual view or playlist if saved
-      const virtualView = JSON.parse(localStorage.getItem('hometube_virtual_view') || 'null')
-      if (virtualView && virtualView.type === 'virtual') {
-        API.get('/music', { user_id: currentUser.value?.id }).then(songs => {
-          selectedPlaylist.value = {
-            type: 'virtual',
-            name: virtualView.name,
-            songs: virtualView.name === 'My Songs'
-              ? songs.filter(m => m.added_by === currentUser.value?.id)
-              : songs
-          }
-        })
-      } else if (selectedPlaylistId.value) {
-        API.get('/playlists', { user_id: currentUser.value?.id }).then(playlists => {
-          const pl = playlists.find(p => p.id === selectedPlaylistId.value)
-          if (pl) selectedPlaylist.value = pl
-        })
-      }
-    })
-
-    onUnmounted(() => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    })
-
-    return { currentUser, activeTab, videoSubPage, musicSubPage, selectedPlaylist, navOpen, mode, modeLabel, setUser, navigate, openPlaylist, closePlaylist, showInstall, installApp }
+const saveState = () => {
+  const state = {
+    activeTab: activeTab.value,
+    videoSubPage: videoSubPage.value,
+    musicSubPage: musicSubPage.value,
+    selectedPlaylistId: selectedPlaylist.value?.id || null
+  }
+  localStorage.setItem('hometube_state', JSON.stringify(state))
+  if (selectedPlaylist.value?.type === 'virtual') {
+    localStorage.setItem('hometube_virtual_view', JSON.stringify({ type: 'virtual', name: selectedPlaylist.value.name }))
+  } else {
+    localStorage.removeItem('hometube_virtual_view')
   }
 }
+
+const setUser = (user) => {
+  currentUser.value = user
+  localStorage.setItem('user', JSON.stringify(user))
+  activeTab.value = 'video'
+  saveState()
+}
+
+const navigate = (tab, subPage = null) => {
+  activeTab.value = tab
+  if (subPage) {
+    if (tab === 'video') videoSubPage.value = subPage
+    if (tab === 'music') musicSubPage.value = subPage
+  }
+  navOpen.value = false
+  saveState()
+}
+
+const openPlaylist = async (playlist) => {
+  selectedPlaylist.value = playlist
+  navOpen.value = false
+  if (playlist.id) {
+    saveState()
+  }
+}
+
+const closePlaylist = () => {
+  selectedPlaylist.value = null
+  saveState()
+}
+
+const installApp = async () => {
+  if (!installPrompt.value) return
+  installPrompt.value.prompt()
+  const { outcome } = await installPrompt.value.userChoice
+  if (outcome === 'accepted') installPrompt.value = null
+  showInstall.value = false
+}
+
+const handleBeforeInstallPrompt = (e) => {
+  e.preventDefault()
+  installPrompt.value = e
+  showInstall.value = true
+}
+
+onMounted(() => {
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  if (window.matchMedia('(display-mode: standalone)').matches) showInstall.value = false
+
+  const virtualView = JSON.parse(localStorage.getItem('hometube_virtual_view') || 'null')
+  if (virtualView && virtualView.type === 'virtual') {
+    API.get('/music', { user_id: currentUser.value?.id }).then(songs => {
+      selectedPlaylist.value = {
+        type: 'virtual',
+        name: virtualView.name,
+        songs: virtualView.name === 'My Songs'
+          ? songs.filter(m => m.added_by === currentUser.value?.id)
+          : songs
+      }
+    })
+  } else if (selectedPlaylistId.value) {
+    API.get('/playlists', { user_id: currentUser.value?.id }).then(playlists => {
+      const pl = playlists.find(p => p.id === selectedPlaylistId.value)
+      if (pl) selectedPlaylist.value = pl
+    })
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+})
 </script>
 
 <template>

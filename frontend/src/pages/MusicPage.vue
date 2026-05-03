@@ -1,41 +1,36 @@
-<script>
+<script setup>
 import { ref, onMounted, watch } from 'vue'
 import { API } from '../api.js'
 
-export default {
-  props: ['user'],
-  setup(props) {
-    const music = ref([])
-    const url = ref('')
+const props = defineProps(['user'])
 
-    const load = async () => {
-      if (!props.user) return
-      music.value = await API.get('/music', { user_id: props.user.id })
-    }
+const music = ref([])
+const url = ref('')
 
-    const add = async () => {
-      if (!url.value) return
-      await API.post('/music/add', { url: url.value, user_id: props.user.id })
-      url.value = ''
-      load()
-    }
-
-    const download = async (id) => {
-      await API.post(`/music/${id}/download`, { user_id: props.user.id })
-      load()
-    }
-
-    const cleanTitle = (title) => {
-      if (!title) return title
-      return title.replace(/\s*\[[^\]]+\]\s*$/, '')
-    }
-
-    watch(() => props.user, load, { immediate: true })
-    onMounted(load)
-
-    return { music, url, add, download, cleanTitle }
-  }
+const load = async () => {
+  if (!props.user) return
+  music.value = await API.get('/music', { user_id: props.user.id })
 }
+
+const add = async () => {
+  if (!url.value) return
+  await API.post('/music/add', { url: url.value, user_id: props.user.id })
+  url.value = ''
+  load()
+}
+
+const download = async (id) => {
+  await API.post(`/music/${id}/download`, { user_id: props.user.id })
+  load()
+}
+
+const cleanTitle = (title) => {
+  if (!title) return title
+  return title.replace(/\s*\[[^\]]+\]\s*$/, '')
+}
+
+watch(() => props.user, load, { immediate: true })
+onMounted(load)
 </script>
 
 <template>

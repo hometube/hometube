@@ -1,52 +1,47 @@
-<script>
+<script setup>
 import { ref } from 'vue'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-export default {
-  components: { FontAwesomeIcon },
-  props: ['user'],
-  setup(props, { emit }) {
-    const url = ref('')
-    const quality = ref('best')
-    const qualities = [
-      { id: 'best', label: 'Best' },
-      { id: 'best[height<=1080]', label: '1080p' },
-      { id: 'best[height<=720]', label: '720p' },
-      { id: 'best[height<=480]', label: '480p' }
-    ]
-    const loading = ref(false)
-    const availableFormats = ref([])
+const props = defineProps(['user'])
+const emit = defineEmits(['back'])
 
-    const fetchFormats = async () => {
-      if (!url.value) return
-      availableFormats.value = await API.get('/videos/info', { url: url.value })
+const url = ref('')
+const quality = ref('best')
+const qualities = [
+  { id: 'best', label: 'Best' },
+  { id: 'best[height<=1080]', label: '1080p' },
+  { id: 'best[height<=720]', label: '720p' },
+  { id: 'best[height<=480]', label: '480p' }
+]
+const loading = ref(false)
+const availableFormats = ref([])
+
+const fetchFormats = async () => {
+  if (!url.value) return
+  availableFormats.value = await API.get('/videos/info', { url: url.value })
+}
+
+const add = async () => {
+  if (!url.value || !props.user) return
+  loading.value = true
+  await API.post('/videos/add', { url: url.value, user_id: props.user.id, quality: quality.value })
+  const videos = await API.get('/videos', { user_id: props.user.id })
+  const newVid = videos[0]
+  if (newVid && !newVid.downloaded) {
+    await API.post(`/videos/${newVid.id}/download`, { quality: quality.value })
+    if (confirm('Download complete! Save to device?')) {
+      API.downloadFile(`/api/files/videos/${newVid.video_id}.mp4`, `${newVid.title}.mp4`)
     }
-
-    const add = async () => {
-      if (!url.value || !props.user) return
-      loading.value = true
-      await API.post('/videos/add', { url: url.value, user_id: props.user.id, quality: quality.value })
-      const videos = await API.get('/videos', { user_id: props.user.id })
-      const newVid = videos[0]
-      if (newVid && !newVid.downloaded) {
-        await API.post(`/videos/${newVid.id}/download`, { quality: quality.value })
-        if (confirm('Download complete! Save to device?')) {
-          API.downloadFile(`/api/files/videos/${newVid.video_id}.mp4`, `${newVid.title}.mp4`)
-        }
-      }
-      url.value = ''
-      loading.value = false
-    }
-
-    return { url, quality, qualities, loading, availableFormats, fetchFormats, add }
   }
+  url.value = ''
+  loading.value = false
 }
 </script>
 
 <template>
   <div class="p-4 pt-16" v-if="user">
-    <button @click="$emit('back')" class="text-gray-400 mb-4">
+    <button @click="emit('back')" class="text-gray-400 mb-4">
       <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
     </button>
     <h2 class="text-xl font-bold mb-4">Add Video</h2>

@@ -1,32 +1,26 @@
-<script>
+<script setup>
 import { ref, onMounted } from 'vue'
 import { API } from '../api.js'
 
-export default {
-  emits: ['select'],
-  setup(props, { emit }) {
-    const username = ref('')
-    const users = ref([])
+const emit = defineEmits(['select'])
+const username = ref('')
+const users = ref([])
 
-    const loadUsers = async () => {
-      users.value = await API.get('/users')
-    }
-
-    const saveUser = async () => {
-      if (!username.value.trim()) return
-      const user = await API.post('/users', { username: username.value.trim() })
-      emit('select', user)
-    }
-
-    const selectExisting = (user) => {
-      emit('select', user)
-    }
-
-    onMounted(loadUsers)
-
-    return { username, users, saveUser, selectExisting }
-  }
+const loadUsers = async () => {
+  users.value = await API.get('/users')
 }
+
+const saveUser = async () => {
+  if (!username.value.trim()) return
+  const user = await API.post('/users', { username: username.value.trim() })
+  emit('select', user)
+}
+
+const selectExisting = (user) => {
+  emit('select', user)
+}
+
+onMounted(loadUsers)
 </script>
 
 <template>

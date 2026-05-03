@@ -1,50 +1,45 @@
-<script>
+<script setup>
 import { ref, onMounted, watch } from 'vue'
 import { API } from '../api.js'
 
-export default {
-  props: ['user'],
-  setup(props) {
-    const videos = ref([])
-    const channels = ref([])
-    const url = ref('')
-    const action = ref('link')
+const props = defineProps(['user'])
 
-    const load = async () => {
-      if (!props.user) return
-      const [v, c] = await Promise.all([
-        API.get('/videos', { user_id: props.user.id }),
-        API.get('/channels')
-      ])
-      videos.value = v
-      channels.value = c
-    }
+const videos = ref([])
+const channels = ref([])
+const url = ref('')
+const action = ref('link')
 
-    const add = async () => {
-      if (!url.value) return
-      if (action.value === 'link') await API.post('/videos/add', { url: url.value, user_id: props.user.id })
-      else await API.post('/channels/add', { url: url.value })
-      url.value = ''
-      load()
-    }
-
-    const subscribe = async (chanId) => {
-      const criteria = prompt('Keywords (comma-separated):')
-      await API.post(`/channels/${chanId}/subscribe`, { user_id: props.user.id, criteria: criteria ? { keywords: criteria.split(',') } : {} })
-      load()
-    }
-
-    const download = async (vidId) => {
-      await API.post(`/videos/${vidId}/download`, { user_id: props.user.id })
-      load()
-    }
-
-    watch(() => props.user, load, { immediate: true })
-    onMounted(load)
-
-    return { videos, channels, url, action, add, subscribe, download }
-  }
+const load = async () => {
+  if (!props.user) return
+  const [v, c] = await Promise.all([
+    API.get('/videos', { user_id: props.user.id }),
+    API.get('/channels')
+  ])
+  videos.value = v
+  channels.value = c
 }
+
+const add = async () => {
+  if (!url.value) return
+  if (action.value === 'link') await API.post('/videos/add', { url: url.value, user_id: props.user.id })
+  else await API.post('/channels/add', { url: url.value })
+  url.value = ''
+  load()
+}
+
+const subscribe = async (chanId) => {
+  const criteria = prompt('Keywords (comma-separated):')
+  await API.post(`/channels/${chanId}/subscribe`, { user_id: props.user.id, criteria: criteria ? { keywords: criteria.split(',') } : {} })
+  load()
+}
+
+const download = async (vidId) => {
+  await API.post(`/videos/${vidId}/download`, { user_id: props.user.id })
+  load()
+}
+
+watch(() => props.user, load, { immediate: true })
+onMounted(load)
 </script>
 
 <template>

@@ -1,175 +1,164 @@
-<script>
+<script setup>
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import WaveformVisual from '../components/WaveformVisual.vue'
 
-export default {
-  components: { FontAwesomeIcon, WaveformVisual },
-  props: ['playlist', 'user', 'songs'],
-  setup(props, { emit }) {
-    const displaySongs = ref([])
-    const originalOrder = ref([])
-    const currentIndex = ref(-1)
-    const shuffled = ref(false)
-    const repeat = ref(false)
-    const playing = ref(false)
-    const audio = ref(null)
-    const currentTime = ref(0)
-    const duration = ref(0)
+const props = defineProps(['playlist', 'user', 'songs'])
+const emit = defineEmits(['close'])
 
-    const loadSongs = async () => {
-      let musicList = props.songs
-      if (!musicList && props.playlist) {
-        const allMusic = await API.get('/music', { user_id: props.user.id })
-        musicList = (props.playlist.songs || [])
-          .map(s => allMusic.find(m => m.id === s.music_id))
-          .filter(Boolean)
-      }
-      if (!musicList) return
-      originalOrder.value = [...musicList]
-      displaySongs.value = [...musicList]
-      shuffled.value = JSON.parse(localStorage.getItem(`playlist_${props.playlist?.id}_shuffled`) || 'false')
-      if (shuffled.value) shuffleOrder()
-    }
+const displaySongs = ref([])
+const originalOrder = ref([])
+const currentIndex = ref(-1)
+const shuffled = ref(false)
+const repeat = ref(false)
+const playing = ref(false)
+const audio = ref(null)
+const currentTime = ref(0)
+const duration = ref(0)
 
-    const shuffleOrder = () => {
-      const arr = [...displaySongs.value]
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[arr[i], arr[j]] = [arr[j], arr[i]]
-      }
-      const currentSongId = displaySongs.value[currentIndex.value]?.id
-      displaySongs.value = arr
-      currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
-    }
+const loadSongs = async () => {
+  let musicList = props.songs
+  if (!musicList && props.playlist) {
+    const allMusic = await API.get('/music', { user_id: props.user.id })
+    musicList = (props.playlist.songs || [])
+      .map(s => allMusic.find(m => m.id === s.music_id))
+      .filter(Boolean)
+  }
+  if (!musicList) return
+  originalOrder.value = [...musicList]
+  displaySongs.value = [...musicList]
+  shuffled.value = JSON.parse(localStorage.getItem(`playlist_${props.playlist?.id}_shuffled`) || 'false')
+  if (shuffled.value) shuffleOrder()
+}
 
-    const playSong = (index) => {
-      currentIndex.value = index
-      playing.value = true
-      currentTime.value = 0
-      if (audio.value) {
-        audio.value.src = `/api/music/${displaySongs.value[index].id}/file?t=${Date.now()}`
-        audio.value.load()
-        audio.value.play().catch(() => {})
-      }
-    }
+const shuffleOrder = () => {
+  const arr = [...displaySongs.value]
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  const currentSongId = displaySongs.value[currentIndex.value]?.id
+  displaySongs.value = arr
+  currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
+}
 
-    const playFirst = () => {
-      if (displaySongs.value.length > 0) playSong(0)
-    }
-
-    const togglePlay = () => {
-      if (!audio.value) return
-      playing.value = !playing.value
-      if (playing.value) {
-        audio.value.play().catch(() => {})
-      } else {
-        audio.value.pause()
-      }
-    }
-
-    const next = () => {
-      if (currentIndex.value < displaySongs.value.length - 1) {
-        playSong(currentIndex.value + 1)
-      } else if (repeat.value) {
-        playSong(0)
-      }
-    }
-
-    const prev = () => {
-      if (audio.value && audio.value.currentTime > 3) {
-        audio.value.currentTime = 0
-      } else if (currentIndex.value > 0) {
-        playSong(currentIndex.value - 1)
-      }
-    }
-
-    const toggleShuffle = () => {
-      shuffled.value = !shuffled.value
-      if (props.playlist) {
-        localStorage.setItem(`playlist_${props.playlist.id}_shuffled`, shuffled.value.toString())
-      }
-      if (shuffled.value) {
-        shuffleOrder()
-      } else {
-        const currentSongId = displaySongs.value[currentIndex.value]?.id
-        displaySongs.value = [...originalOrder.value]
-        currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
-      }
-    }
-
-    const toggleRepeat = () => { repeat.value = !repeat.value }
-
-    const currentSong = computed(() => {
-      if (displaySongs.value.length === 0) return null
-      return currentIndex.value >= 0 ? displaySongs.value[currentIndex.value] : displaySongs.value[0]
-    })
-
-    const cleanTitle = (title) => {
-      if (!title) return title
-      return title.replace(/\s*\[[^\]]+\]\s*$/, '')
-    }
-
-    const formatTime = (seconds) => {
-      if (!seconds || isNaN(seconds)) return '0:00'
-      const mins = Math.floor(seconds / 60)
-      const secs = Math.floor(seconds % 60)
-      return `${mins}:${secs.toString().padStart(2, '0')}`
-    }
-
-    const seekTo = (event) => {
-      if (!audio.value || !duration.value) return
-      const percent = event.offsetX / event.target.clientWidth
-      audio.value.currentTime = percent * duration.value
-    }
-
-    const addToPlaylist = async (musicId, targetPlaylistId) => {
-      await API.post(`/playlists/${targetPlaylistId}/add`, { music_id: musicId })
-    }
-
-    const removeFromPlaylist = async (musicId) => {
-      if (!props.playlist) return
-      await API.delete(`/playlists/${props.playlist.id}/remove/${musicId}`)
-      loadSongs()
-    }
-
-    const close = () => {
-      if (audio.value) {
-        audio.value.pause()
-        audio.value.src = ''
-      }
-      emit('close')
-    }
-
-    onMounted(() => {
-      audio.value = new Audio()
-      audio.value.addEventListener('ended', next)
-      audio.value.addEventListener('loadedmetadata', () => {
-        duration.value = audio.value.duration
-      })
-      audio.value.addEventListener('timeupdate', () => {
-        currentTime.value = audio.value.currentTime
-      })
-      loadSongs()
-    })
-
-    onUnmounted(() => {
-      if (audio.value) {
-        audio.value.pause()
-        audio.value.src = ''
-      }
-    })
-
-    return {
-      displaySongs, currentIndex, shuffled, repeat, playing, currentSong,
-      currentTime, duration, formatTime, cleanTitle,
-      playSong, playFirst, togglePlay, next, prev,
-      toggleShuffle, toggleRepeat, seekTo,
-      addToPlaylist, removeFromPlaylist, close, audio, playing
-    }
+const playSong = (index) => {
+  currentIndex.value = index
+  playing.value = true
+  currentTime.value = 0
+  if (audio.value) {
+    audio.value.src = `/api/music/${displaySongs.value[index].id}/file?t=${Date.now()}`
+    audio.value.load()
+    audio.value.play().catch(() => {})
   }
 }
+
+const playFirst = () => {
+  if (displaySongs.value.length > 0) playSong(0)
+}
+
+const togglePlay = () => {
+  if (!audio.value) return
+  playing.value = !playing.value
+  if (playing.value) {
+    audio.value.play().catch(() => {})
+  } else {
+    audio.value.pause()
+  }
+}
+
+const next = () => {
+  if (currentIndex.value < displaySongs.value.length - 1) {
+    playSong(currentIndex.value + 1)
+  } else if (repeat.value) {
+    playSong(0)
+  }
+}
+
+const prev = () => {
+  if (audio.value && audio.value.currentTime > 3) {
+    audio.value.currentTime = 0
+  } else if (currentIndex.value > 0) {
+    playSong(currentIndex.value - 1)
+  }
+}
+
+const toggleShuffle = () => {
+  shuffled.value = !shuffled.value
+  if (props.playlist) {
+    localStorage.setItem(`playlist_${props.playlist.id}_shuffled`, shuffled.value.toString())
+  }
+  if (shuffled.value) {
+    shuffleOrder()
+  } else {
+    const currentSongId = displaySongs.value[currentIndex.value]?.id
+    displaySongs.value = [...originalOrder.value]
+    currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
+  }
+}
+
+const toggleRepeat = () => { repeat.value = !repeat.value }
+
+const currentSong = computed(() => {
+  if (displaySongs.value.length === 0) return null
+  return currentIndex.value >= 0 ? displaySongs.value[currentIndex.value] : displaySongs.value[0]
+})
+
+const cleanTitle = (title) => {
+  if (!title) return title
+  return title.replace(/\s*\[[^\]]+\]\s*$/, '')
+}
+
+const formatTime = (seconds) => {
+  if (!seconds || isNaN(seconds)) return '0:00'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+const seekTo = (event) => {
+  if (!audio.value || !duration.value) return
+  const percent = event.offsetX / event.target.clientWidth
+  audio.value.currentTime = percent * duration.value
+}
+
+const addToPlaylist = async (musicId, targetPlaylistId) => {
+  await API.post(`/playlists/${targetPlaylistId}/add`, { music_id: musicId })
+}
+
+const removeFromPlaylist = async (musicId) => {
+  if (!props.playlist) return
+  await API.delete(`/playlists/${props.playlist.id}/remove/${musicId}`)
+  loadSongs()
+}
+
+const close = () => {
+  if (audio.value) {
+    audio.value.pause()
+    audio.value.src = ''
+  }
+  emit('close')
+}
+
+onMounted(() => {
+  audio.value = new Audio()
+  audio.value.addEventListener('ended', next)
+  audio.value.addEventListener('loadedmetadata', () => {
+    duration.value = audio.value.duration
+  })
+  audio.value.addEventListener('timeupdate', () => {
+    currentTime.value = audio.value.currentTime
+  })
+  loadSongs()
+})
+
+onUnmounted(() => {
+  if (audio.value) {
+    audio.value.pause()
+    audio.value.src = ''
+  }
+})
 </script>
 
 <template>
