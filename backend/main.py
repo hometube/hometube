@@ -1,15 +1,24 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
+import re
 from contextlib import asynccontextmanager
 
 from database import engine, get_db, Base
 import models
 from services import ytdlp, scheduler
+
+
+def clean_title(title):
+    """Remove video ID from title (e.g., 'Song [video_id]' -> 'Song')"""
+    if not title:
+        return title
+    return re.sub(r'\s*\[[^\]]+\]\s*$', '', title)
 
 class UserCreate(BaseModel):
     username: str
@@ -217,7 +226,8 @@ def add_music(data: MusicAdd, db: Session = Depends(get_db)):
     info = ytdlp.get_music_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid music URL")
-    music = models.Music(video_id=info.get("id"), url=data.url, title=info.get("title"), artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist="entries" in info, added_by=data.user_id)
+    title = clean_title(info.get("title"))
+    music = models.Music(video_id=info.get("id"), url=data.url, title=title, artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist="entries" in info, added_by=data.user_id)
     db.add(music)
     db.commit()
     db.refresh(music)
@@ -238,6 +248,7 @@ def download_music(music_id: int, data: MusicDownload, db: Session = Depends(get
     if not music:
         raise HTTPException(404)
     filename = ytdlp.download_music(music.url, music.id)
+    music.filename = filename
     music.downloaded = True
     db.commit()
     return {"ok": True, "filename": filename}
@@ -247,15 +258,54 @@ def serve_music_by_id(music_id: int, db: Session = Depends(get_db)):
     music = db.query(models.Music).filter(models.Music.id == music_id).first()
     if not music:
         raise HTTPException(404)
+
+    print(f"[DEBUG] Serving music {music_id}: filename={music.filename}, video_id={music.video_id}, url={music.url}, title={music.title}")
+
+    # Use stored filename if available
+    if music.filename:
+        path = f"data/downloads/music/{music.filename}"
+        if os.path.exists(path):
+            print(f"[DEBUG] Using stored filename: {path}")
+            ext = music.filename.split(".")[-1].lower()
+            media_types = {"mp3": "audio/mpeg", "webm": "audio/webm", "m4a": "audio/mp4", "ogg": "audio/ogg", "flac": "audio/flac", "wav": "audio/wav"}
+            media_type = media_types.get(ext, "audio/mpeg")
+            response = FileResponse(path, media_type=media_type, filename=music.filename)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+        else:
+            print(f"[DEBUG] Stored filename not found on disk: {path}")
+
+    # Try to extract filename from URL (for imported files with file:// prefix)
+    if music.url and music.url.startswith('file://'):
+        filename = music.url[7:]  # Remove 'file://' prefix
+        path = f"data/downloads/music/{filename}"
+        if os.path.exists(path):
+            print(f"[DEBUG] Using filename from URL: {path}")
+            # Save filename to database for future use
+            music.filename = filename
+            db.commit()
+            ext = filename.split(".")[-1].lower()
+            media_types = {"mp3": "audio/mpeg", "webm": "audio/webm", "m4a": "audio/mp4", "ogg": "audio/ogg", "flac": "audio/flac", "wav": "audio/wav"}
+            media_type = media_types.get(ext, "audio/mpeg")
+            response = FileResponse(path, media_type=media_type, filename=filename)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+
+    # Find file by video_id or other methods
     import glob
     import re
-    # Try to extract YouTube video ID from various sources
     video_id = music.video_id
     if not video_id and music.url:
         # Extract from YouTube URL
-        match = re.search(r'(?:v=|/([^/]+))([^&?/]+)', music.url)
+        match = re.search(r'[?&]v=([^&]+)', music.url)
+        if not match:
+            match = re.search(r'youtu\.be/([^?&]+)', music.url)
         if match:
-            video_id = match.group(2) or match.group(1)
+            video_id = match.group(1)
     if not video_id and music.title:
         # Extract from title like "Song [video_id]"
         match = re.search(r'\[([^\]]+)\]', music.title)
@@ -263,16 +313,27 @@ def serve_music_by_id(music_id: int, db: Session = Depends(get_db)):
             video_id = match.group(1)
     if not video_id:
         video_id = str(music.id)
-    # Search for file containing the video ID
+
+    print(f"[DEBUG] Searching for video_id: {video_id}")
     matches = glob.glob(f"data/downloads/music/*{video_id}*")
+    print(f"[DEBUG] Glob matches: {matches}")
     if not matches:
         raise HTTPException(404)
     path = matches[0]
     filename = path.split("/")[-1]
+
+    # Save filename to database for future use
+    music.filename = filename
+    db.commit()
+
     ext = filename.split(".")[-1].lower()
     media_types = {"mp3": "audio/mpeg", "webm": "audio/webm", "m4a": "audio/mp4", "ogg": "audio/ogg", "flac": "audio/flac", "wav": "audio/wav"}
     media_type = media_types.get(ext, "audio/mpeg")
-    return FileResponse(path, media_type=media_type, filename=filename)
+    response = FileResponse(path, media_type=media_type, filename=filename)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # Downloads status
 @app.get("/api/downloads")

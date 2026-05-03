@@ -25,10 +25,15 @@ export default {
       load()
     }
 
+    const cleanTitle = (title) => {
+      if (!title) return title
+      return title.replace(/\s*\[[^\]]+\]\s*$/, '')
+    }
+
     watch(() => props.user, load, { immediate: true })
     onMounted(load)
 
-    return { music, url, add, download }
+    return { music, url, add, download, cleanTitle }
   }
 }
 </script>
@@ -41,7 +46,7 @@ export default {
 
     <h3 class="text-lg mb-2">Your Music</h3>
     <div v-for="m in music" :key="m.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2">
-      <div class="text-sm mb-1">{{ m.title }}</div>
+      <div class="text-sm mb-1">{{ cleanTitle(m.title) }}</div>
       <div class="flex gap-1 mb-1">
         <span v-if="m.artist" class="text-xs bg-gray-600 px-2 py-1 rounded">{{ m.artist }}</span>
         <span v-if="m.is_playlist" class="text-xs bg-gray-600 px-2 py-1 rounded">Playlist</span>

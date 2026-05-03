@@ -6,6 +6,7 @@ Scans a folder of music files, extracts metadata, and creates Music records.
 
 import os
 import sys
+import re
 import argparse
 from pathlib import Path
 from sqlalchemy import create_engine
@@ -29,11 +30,20 @@ SUPPORTED_EXTENSIONS = {'.mp3', '.flac', '.wav', '.m4a', '.aac', '.ogg', '.webm'
 def extract_metadata(filepath):
     """Extract metadata from audio file."""
     ext = Path(filepath).suffix.lower()
+    filename = Path(filepath).stem
     metadata = {
-        'title': Path(filepath).stem,
+        'title': filename,
         'artist': 'Unknown Artist',
         'album': None,
+        'video_id': None,
     }
+
+    # Try to extract video_id from filename (format: "Artist - Title [video_id]")
+    video_id_match = re.search(r'\[([^\]]+)\]$', filename)
+    if video_id_match:
+        metadata['video_id'] = video_id_match.group(1)
+        # Clean title by removing video_id
+        metadata['title'] = re.sub(r'\s*\[([^\]]+)\]\s*$', '', filename)
 
     try:
         if ext == '.mp3':
@@ -60,12 +70,24 @@ def extract_metadata(filepath):
             if audio.tags:
                 metadata['title'] = audio.tags.get('title', [metadata['title']])[0]
                 metadata['artist'] = audio.tags.get('artist', [metadata['artist']])[0]
-        elif ext == '.webm':
+        elif ext in ('.webm', '.m4a', '.ogg', '.aac'):
             audio = mutagen.File(filepath)
             if audio:
-                metadata['title'] = audio.get('title', [metadata['title']])[0] if audio.get('title') else metadata['title']
-                metadata['artist'] = audio.get('artist', [metadata['artist']])[0] if audio.get('artist') else metadata['artist']
-                metadata['album'] = audio.get('album', [None])[0] if audio.get('album') else None
+                # mutagen.File returns different tag formats for different file types
+                if hasattr(audio, 'tags') and audio.tags:
+                    metadata['title'] = audio.tags.get('title', [metadata['title']])[0] if audio.tags.get('title') else metadata['title']
+                    metadata['artist'] = audio.tags.get('artist', [metadata['artist']])[0] if audio.tags.get('artist') else metadata['artist']
+                    metadata['album'] = audio.tags.get('album', [None])[0] if audio.tags.get('album') else None
+                # Also try direct attribute access for some formats
+                if metadata['title'] == filename or metadata['title'] == metadata['title']:
+                    for key in audio.keys():
+                        if 'title' in key.lower() and audio[key]:
+                            metadata['title'] = str(audio[key][0]) if isinstance(audio[key], list) else str(audio[key])
+                            break
+                    for key in audio.keys():
+                        if 'artist' in key.lower() and audio[key]:
+                            metadata['artist'] = str(audio[key][0]) if isinstance(audio[key], list) else str(audio[key])
+                            break
     except Exception as e:
         print(f"  Warning: Could not extract metadata from {filepath}: {e}")
 
@@ -137,6 +159,8 @@ def import_music_folder(folder_path, user_id, playlist_id=None, copy_files=True)
                     url=f"file://{dest_filename}",
                     title=metadata['title'],
                     artist=metadata['artist'],
+                    video_id=metadata['video_id'],
+                    filename=dest_filename,
                     album_art=None,
                     is_playlist=False,
                     downloaded=True,

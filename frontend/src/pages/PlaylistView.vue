@@ -7,7 +7,6 @@ export default {
   components: { FontAwesomeIcon },
   props: ['playlist', 'user', 'songs'],
   setup(props, { emit }) {
-    const allSongs = ref([])
     const displaySongs = ref([])
     const originalOrder = ref([])
     const currentIndex = ref(-1)
@@ -28,7 +27,6 @@ export default {
           .filter(Boolean)
       }
       if (!musicList) return
-      allSongs.value = musicList
       originalOrder.value = [...musicList]
       displaySongs.value = [...musicList]
       shuffled.value = JSON.parse(localStorage.getItem(`playlist_${props.playlist?.id}_shuffled`) || 'false')
@@ -41,8 +39,8 @@ export default {
         const j = Math.floor(Math.random() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]]
       }
+      const currentSongId = displaySongs.value[currentIndex.value]?.id
       displaySongs.value = arr
-      const currentSongId = allSongs.value[currentIndex.value]?.id
       currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
     }
 
@@ -51,7 +49,7 @@ export default {
       playing.value = true
       currentTime.value = 0
       if (audio.value) {
-        audio.value.src = `/api/music/${displaySongs.value[index].id}/file`
+        audio.value.src = `/api/music/${displaySongs.value[index].id}/file?t=${Date.now()}`
         audio.value.load()
         audio.value.play().catch(() => {})
       }
@@ -59,19 +57,6 @@ export default {
 
     const playFirst = () => {
       if (displaySongs.value.length > 0) playSong(0)
-    }
-
-    const shufflePlay = () => {
-      shuffled.value = true
-      if (props.playlist) {
-        localStorage.setItem(`playlist_${props.playlist.id}_shuffled`, 'true')
-      }
-      shuffleOrder()
-      if (currentIndex.value >= 0) {
-        playSong(currentIndex.value)
-      } else {
-        playSong(Math.floor(Math.random() * displaySongs.value.length))
-      }
     }
 
     const togglePlay = () => {
@@ -104,16 +89,24 @@ export default {
       if (shuffled.value) {
         shuffleOrder()
       } else {
+        const currentSongId = displaySongs.value[currentIndex.value]?.id
         displaySongs.value = [...originalOrder.value]
-        const currentSongId = allSongs.value[currentIndex.value]?.id
         currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
       }
     }
 
     const toggleRepeat = () => { repeat.value = !repeat.value }
 
-    const currentSong = computed(() => displaySongs.value[currentIndex.value] || displaySongs.value[0])
+    const currentSong = computed(() => {
+      if (displaySongs.value.length === 0) return null
+      return currentIndex.value >= 0 ? displaySongs.value[currentIndex.value] : displaySongs.value[0]
+    })
     const firstSongArt = computed(() => displaySongs.value[0]?.album_art)
+
+    const cleanTitle = (title) => {
+      if (!title) return title
+      return title.replace(/\s*\[[^\]]+\]\s*$/, '')
+    }
 
     const formatTime = (seconds) => {
       if (!seconds || isNaN(seconds)) return '0:00'
@@ -167,8 +160,8 @@ export default {
 
     return {
       displaySongs, currentIndex, shuffled, repeat, playing, currentSong, firstSongArt,
-      currentTime, duration, formatTime,
-      playSong, playFirst, shufflePlay, togglePlay, next, prev,
+      currentTime, duration, formatTime, cleanTitle,
+      playSong, playFirst, togglePlay, next, prev,
       toggleShuffle, toggleRepeat, seekTo,
       addToPlaylist, removeFromPlaylist, close
     }
@@ -188,7 +181,7 @@ export default {
 
     <div class="p-4 text-center">
       <img :src="currentSong?.album_art || firstSongArt" class="w-48 h-48 rounded-lg object-cover mx-auto mb-4" />
-      <div v-if="currentSong" class="font-medium">{{ currentSong.title }}</div>
+      <div v-if="currentSong" class="font-medium">{{ cleanTitle(currentSong.title) }}</div>
       <div v-if="currentSong" class="text-sm text-gray-400">{{ currentSong.artist }}</div>
     </div>
 
@@ -211,15 +204,6 @@ export default {
     </div>
 
     <div class="flex items-center justify-center gap-6 p-4">
-      <button @click="playFirst" class="px-4 py-2 bg-blue-600 rounded-lg text-sm">
-        <FontAwesomeIcon :icon="['fas', 'play']" /> Play
-      </button>
-      <button @click="shufflePlay" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">
-        <FontAwesomeIcon :icon="['fas', 'random']" /> Shuffle
-      </button>
-    </div>
-
-    <div class="flex items-center justify-center gap-6 p-4">
       <button @click="toggleShuffle" :class="shuffled ? 'text-blue-500' : 'text-gray-400'">
         <FontAwesomeIcon :icon="['fas', 'random']" />
       </button>
@@ -235,7 +219,7 @@ export default {
         @click="playSong(idx)">
         <img v-if="s.album_art" :src="s.album_art" class="w-10 h-10 rounded object-cover" />
         <div class="flex-1">
-          <div class="text-sm">{{ s.title }}</div>
+          <div class="text-sm">{{ cleanTitle(s.title) }}</div>
           <div class="text-xs text-gray-400">{{ s.artist }}</div>
         </div>
         <button v-if="playlist" @click.stop="removeFromPlaylist(s.id)" class="text-gray-400">

@@ -60,6 +60,7 @@ class Music(Base):
     title = Column(String(300))
     artist = Column(String(200))
     album_art = Column(String(500))
+    filename = Column(String(500))
     is_playlist = Column(Boolean, default=False)
     playlist_id = Column(String(50))
     downloaded = Column(Boolean, default=False)
