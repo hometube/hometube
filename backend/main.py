@@ -32,6 +32,9 @@ class MusicAdd(BaseModel):
     user_id: int
     playlist_id: Optional[int] = None
 
+class MusicDownload(BaseModel):
+    filename: Optional[str] = None
+
 class PlaylistCreate(BaseModel):
     name: str
     user_id: int
@@ -214,7 +217,7 @@ def add_music(data: MusicAdd, db: Session = Depends(get_db)):
     info = ytdlp.get_music_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid music URL")
-    music = models.Music(url=data.url, title=info.get("title"), artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist="entries" in info, added_by=data.user_id)
+    music = models.Music(video_id=info.get("id"), url=data.url, title=info.get("title"), artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist="entries" in info, added_by=data.user_id)
     db.add(music)
     db.commit()
     db.refresh(music)
@@ -230,14 +233,46 @@ def list_music(user_id: int = None, db: Session = Depends(get_db)):
     return q.order_by(models.Music.created_at.desc()).all()
 
 @app.post("/api/music/{music_id}/download")
-def download_music(music_id: int, data: dict, db: Session = Depends(get_db)):
+def download_music(music_id: int, data: MusicDownload, db: Session = Depends(get_db)):
     music = db.query(models.Music).filter(models.Music.id == music_id).first()
     if not music:
         raise HTTPException(404)
-    ytdlp.download_music(music.url, music.id)
+    filename = ytdlp.download_music(music.url, music.id)
     music.downloaded = True
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "filename": filename}
+
+@app.get("/api/music/{music_id}/file")
+def serve_music_by_id(music_id: int, db: Session = Depends(get_db)):
+    music = db.query(models.Music).filter(models.Music.id == music_id).first()
+    if not music:
+        raise HTTPException(404)
+    import glob
+    import re
+    # Try to extract YouTube video ID from various sources
+    video_id = music.video_id
+    if not video_id and music.url:
+        # Extract from YouTube URL
+        match = re.search(r'(?:v=|/([^/]+))([^&?/]+)', music.url)
+        if match:
+            video_id = match.group(2) or match.group(1)
+    if not video_id and music.title:
+        # Extract from title like "Song [video_id]"
+        match = re.search(r'\[([^\]]+)\]', music.title)
+        if match:
+            video_id = match.group(1)
+    if not video_id:
+        video_id = str(music.id)
+    # Search for file containing the video ID
+    matches = glob.glob(f"data/downloads/music/*{video_id}*")
+    if not matches:
+        raise HTTPException(404)
+    path = matches[0]
+    filename = path.split("/")[-1]
+    ext = filename.split(".")[-1].lower()
+    media_types = {"mp3": "audio/mpeg", "webm": "audio/webm", "m4a": "audio/mp4", "ogg": "audio/ogg", "flac": "audio/flac", "wav": "audio/wav"}
+    media_type = media_types.get(ext, "audio/mpeg")
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 # Downloads status
 @app.get("/api/downloads")
@@ -263,7 +298,10 @@ def serve_music(filename: str):
     path = f"data/downloads/music/{filename}"
     if not os.path.exists(path):
         raise HTTPException(404)
-    return FileResponse(path, media_type="audio/mpeg", filename=filename)
+    ext = filename.split(".")[-1].lower()
+    media_types = {"mp3": "audio/mpeg", "webm": "audio/webm", "m4a": "audio/mp4", "ogg": "audio/ogg", "flac": "audio/flac", "wav": "audio/wav"}
+    media_type = media_types.get(ext, "audio/mpeg")
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 # Serve frontend
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")

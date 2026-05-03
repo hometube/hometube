@@ -65,6 +65,12 @@ def download_video(url, video_id, quality="best"):
 
 def download_music(url, music_id):
     os.makedirs(f"{DL_DIR}/music", exist_ok=True)
-    cmd = ["yt-dlp", "-x", "--audio-format", "mp3", "-o", f"{DL_DIR}/music/%(id)s.%(ext)s", url]
+    out = run_ytdlp(["--get-filename", "-o", f"%(id)s.%(ext)s", url])
+    expected_name = out.strip()
+    cmd = ["yt-dlp", "-x", "-o", f"{DL_DIR}/music/%(id)s.%(ext)s", url]
     subprocess.run(cmd)
-    return True
+    import glob
+    matches = glob.glob(f"{DL_DIR}/music/{expected_name.split('.')[0]}.*")
+    if matches:
+        return matches[0].split("/")[-1]
+    return expected_name

@@ -8,14 +8,17 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'YT Media Server',
-        short_name: 'YT Media',
-        theme_color: '#000000',
+        name: 'HomeTube',
+        short_name: 'HomeTube',
+        theme_color: '#d30f0f',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
+          { src: '/icon-64.png', sizes: '64x64', type: 'image/png' },
+          { src: '/icon-128.png', sizes: '128x128', type: 'image/png' },
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+          { src: '/icon-256.png', sizes: '256x256', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
         ]
       }
     })

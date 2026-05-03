@@ -6,6 +6,7 @@ A self-hosted YouTube media downloader with a mobile-friendly web interface. Dow
 
 - **Video Downloads** - Paste YouTube URLs to download MP4 files with selectable quality (1080p/720p/480p/best)
 - **Music Downloads** - Extract audio from videos/playlists as MP3 files, organize into playlists
+- **Import Existing Music** - Import songs from existing folders with automatic metadata extraction
 - **Channel Subscriptions** - Subscribe to channels and auto-detect new videos with keyword/length/quality filters
 - **Video Player** - In-app player with speed control (0.5x-2x), audio mode (screen-off listening), fullscreen
 - **Smart Feed** - Video feed sorted by recency, filter by "My Feed" / "All Videos" / "Unwatched"
@@ -82,6 +83,31 @@ npm run dev
 6. **Add Music**: Paste song/playlist URL, add to playlist, download to device
 7. **Playlist View**: Full player with album art, shuffle/repeat, song queue management
 
+### Import Existing Music Collection
+
+Import songs from an existing folder into HomeTube with automatic metadata extraction:
+
+```bash
+cd backend
+
+# List users to get your user ID
+python import_music.py --list-users
+
+# (Optional) List playlists
+python import_music.py --list-playlists --user-id 1
+
+# Import music files (copies by default)
+python import_music.py --folder /path/to/your/music --user-id 1
+
+# Import and add to a specific playlist
+python import_music.py --folder /path/to/your/music --user-id 1 --playlist-id 1
+
+# Move files instead of copying
+python import_music.py --folder /path/to/your/music --user-id 1 --move
+```
+
+Supports: MP3, FLAC, WAV, M4A, AAC, OGG. Extracts title, artist, and album from file metadata.
+
 ## Project Structure
 
 ```
@@ -90,6 +116,7 @@ hometube/
 │   ├── main.py              # FastAPI app with REST endpoints
 │   ├── models.py            # DB models (User, Video, Music, Channel, Subscription, Playlist)
 │   ├── database.py          # SQLite configuration
+│   ├── import_music.py      # Utility to import existing music files
 │   ├── requirements.txt     # Python dependencies
 │   └── services/
 │       ├── ytdlp.py         # yt-dlp wrapper for downloads

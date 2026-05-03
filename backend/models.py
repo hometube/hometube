@@ -55,6 +55,7 @@ class Video(Base):
 class Music(Base):
     __tablename__ = "music"
     id = Column(Integer, primary_key=True)
+    video_id = Column(String(20))
     url = Column(String(500))
     title = Column(String(300))
     artist = Column(String(200))

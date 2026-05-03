@@ -34,9 +34,10 @@ export default {
       }
       const music = await API.post('/music/add', { url: url.value, user_id: props.user.id, playlist_id: playlistId })
       if (!music.downloaded) {
-        await API.post(`/music/${music.id}/download`, {})
+        const downloadResult = await API.post(`/music/${music.id}/download`, {})
         if (confirm('Download complete! Save to device?')) {
-          API.downloadFile(`/api/files/music/${music.id}.mp3`, `${music.title}.mp3`)
+          const filename = downloadResult.filename || `${music.id}.mp3`
+          API.downloadFile(`/api/music/${music.id}/file`, `${music.title}.${filename.split('.').pop()}`)
         }
       }
       url.value = ''
