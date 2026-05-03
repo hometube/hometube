@@ -9,6 +9,7 @@ export default {
     let audioContext = null
     let analyser = null
     let dataArray = null
+    let rotation = 0
 
     const initAnalyser = () => {
       if (!canvas.value || !props.audioElement) return
@@ -42,22 +43,26 @@ export default {
       const h = canvas.value.height
       const cx = w / 2
       const cy = h / 2
-      const maxRadius = Math.min(cx, cy)
+      const maxRadius = (cx + cy) / 2
+      const fullFill = Math.sqrt(cx * cx + cy * cy)
 
       ctx.clearRect(0, 0, w, h)
 
       const barCount = dataArray.length
       const angleStep = (Math.PI * 2) / barCount
 
+      rotation += 0.01
+      const avgIntensity = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+
       for (let i = 0; i < barCount; i++) {
-        const value = dataArray[i] / 255
-        const barHeight = value * maxRadius * 0.8
-        const angle = i * angleStep
+        const value = (dataArray[i] + avgIntensity) / (255 * 2)
+        const barHeight = value * maxRadius * 0.5
+        const angle = i * angleStep + rotation
 
         const x1 = cx + Math.cos(angle) * (maxRadius - barHeight)
         const y1 = cy + Math.sin(angle) * (maxRadius - barHeight)
-        const x2 = cx + Math.cos(angle) * maxRadius
-        const y2 = cy + Math.sin(angle) * maxRadius
+        const x2 = cx + Math.cos(angle) * fullFill
+        const y2 = cy + Math.sin(angle) * fullFill
 
         const hue = (i / barCount * 60 + Date.now() / 50) % 360
         ctx.strokeStyle = `hsl(${hue}, 70%, ${30 + value * 30}%)`
@@ -96,5 +101,5 @@ export default {
 </script>
 
 <template>
-  <canvas ref="canvas" class="absolute inset-0 w-full h-full opacity-60 blur-2xl"></canvas>
+  <canvas ref="canvas" class="absolute inset-0 w-full h-full opacity-60 blur-xl"></canvas>
 </template>
