@@ -13,7 +13,8 @@
     "@fortawesome/vue-fontawesome": "^3.2.0",
     "plyr": "^3.8.4",
     "uuid": "^14.0.0",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "waviz": "^1.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
