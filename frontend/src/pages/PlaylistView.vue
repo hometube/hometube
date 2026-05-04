@@ -77,6 +77,12 @@ const playSong = (index) => {
 }
 
 const playFirst = () => {
+  if (shuffled.value) {
+    shuffled.value = false
+    localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, 'false')
+    displaySongs.value = [...originalOrder.value]
+    currentIndex.value = 0
+  }
   if (displaySongs.value.length > 0) playSong(0)
 }
 
@@ -143,6 +149,15 @@ const seekTo = (event) => {
   audio.value.currentTime = percent * duration.value
 }
 
+const shufflePlay = () => {
+  if (!shuffled.value) {
+    shuffled.value = true
+    localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, 'true')
+    shuffleOrder()
+  }
+  if (displaySongs.value.length > 0) playSong(0)
+}
+
 const addToPlaylist = async (musicId, targetPlaylistId) => {
   await API.post(`/playlists/${targetPlaylistId}/add`, { music_id: musicId })
 }
@@ -186,48 +201,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-gray-900 z-50 flex flex-col">
-    <div class="flex items-center justify-between p-4 border-b border-gray-700 relative z-10">
-      <button @click="close" class="text-gray-400">
-        <FontAwesomeIcon :icon="['fas', 'arrow-left']" />
-      </button>
-      <span class="font-bold">{{ playlist?.name || 'Songs' }}</span>
-      <div></div>
-    </div>
-
+  <div class="fixed top-12 inset-0 bg-gray-900 z-50 flex flex-col">
     <div class="flex-1 overflow-hidden relative">
       <WaveformVisual :audioElement="audio" :playing="playing" />
-      <div class="relative z-10 h-full overflow-y-auto">
-        <div class="p-4 text-center">
-          <div v-if="currentSong" class="font-medium">{{ cleanTitle(currentSong.title) }}</div>
-          <div v-if="currentSong" class="text-sm text-gray-400">{{ currentSong.artist }}</div>
-        </div>
-
-        <div v-if="currentIndex >= 0" class="px-4">
-          <div class="flex items-center gap-2 text-xs text-gray-400 mb-1">
-            <span>{{ formatTime(currentTime) }}</span>
-            <div class="flex-1 bg-gray-700 rounded-full h-1 cursor-pointer" @click="seekTo">
-              <div class="bg-blue-500 h-1 rounded-full" :style="{ width: duration ? (currentTime / duration * 100) + '%' : '0%' }"></div>
-            </div>
-            <span>{{ formatTime(duration) }}</span>
+      <div class="relative z-10 h-full overflow-y-auto pb-24">
+        <div class="p-4 py-8">
+          <div class="font-bold text-lg text-center mb-4">{{ playlist?.name || 'Songs' }}</div>
+          <div class="flex items-center justify-center gap-2 mb-6">
+            <button @click="close" class="w-32 bg-gray-700 text-white py-2 rounded-full text-center text-sm font-medium">
+              <FontAwesomeIcon :icon="['fas', 'arrow-left']" class="mr-2" />Back
+            </button>
+            <button @click="playFirst" class="w-32 py-2 bg-white text-black rounded-full text-center text-sm font-medium">
+              <FontAwesomeIcon :icon="['fas', 'play']" class="mr-2" />Play
+            </button>
+            <button @click="shufflePlay" class="w-32 py-2 bg-gray-700 text-white rounded-full text-center text-sm font-medium">
+              <FontAwesomeIcon :icon="['fas', 'random']" class="mr-2" />Shuffle
+            </button>
           </div>
-        </div>
-
-        <div class="flex items-center justify-center gap-6 p-4">
-          <button @click="prev" class="text-white"><FontAwesomeIcon :icon="['fas', 'backward']" /></button>
-          <button @click="togglePlay" class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black">
-            <FontAwesomeIcon :icon="['fas', playing ? 'pause' : 'play']" />
-          </button>
-          <button @click="next" class="text-white"><FontAwesomeIcon :icon="['fas', 'forward']" /></button>
-        </div>
-
-        <div class="flex items-center justify-center gap-6 p-4">
-          <button @click="toggleShuffle" :class="shuffled ? 'text-blue-500' : 'text-gray-400'">
-            <FontAwesomeIcon :icon="['fas', 'random']" />
-          </button>
-          <button @click="toggleRepeat" :class="repeat ? 'text-blue-500' : 'text-gray-400'">
-            <FontAwesomeIcon :icon="['fas', 'redo']" />
-          </button>
         </div>
 
         <div class="p-4">
@@ -240,11 +230,26 @@ onUnmounted(() => {
               <div class="text-sm">{{ cleanTitle(s.title) }}</div>
               <div class="text-xs text-gray-400">{{ s.artist }}</div>
             </div>
-            <button v-if="playlist" @click.stop="removeFromPlaylist(s.id)" class="text-gray-400">
+            <button v-if="playlist && playlist.type !== 'virtual'" @click.stop="removeFromPlaylist(s.id)" class="text-gray-400">
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800/70 backdrop-blur-sm border-t border-gray-700 p-2 z-50">
+      <div class="text-center mb-2">
+        <span class="text-sm font-medium truncate">{{ cleanTitle(currentSong.title) }}</span>
+        •
+        <span class="text-xs text-gray-400 truncate">{{ currentSong.artist }}</span>
+      </div>
+      <div class="flex items-center justify-center gap-10">
+        <button @click="prev" class="text-white"><FontAwesomeIcon :icon="['fas', 'backward']" /></button>
+        <button @click="togglePlay" class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black">
+          <FontAwesomeIcon :icon="['fas', playing ? 'pause' : 'play']" />
+        </button>
+        <button @click="next" class="text-white"><FontAwesomeIcon :icon="['fas', 'forward']" /></button>
       </div>
     </div>
   </div>

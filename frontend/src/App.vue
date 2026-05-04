@@ -65,7 +65,7 @@ onUnmounted(() => {
 <template>
    <div class="min-h-screen bg-black text-white">
      <!-- Top bar with nav toggle -->
-     <div class="fixed top-0 left-0 right-0 bg-gray-900 border-b border-gray-700 z-40 flex items-center p-3">
+     <div class="fixed top-0 left-0 right-0 bg-gray-900 border-b border-gray-700 z-[100] flex items-center p-3">
        <button @click="navOpen = !navOpen" class="text-white mr-3">
          <FontAwesomeIcon :icon="['fas', 'bars']" />
        </button>
@@ -73,7 +73,7 @@ onUnmounted(() => {
      </div>
 
      <!-- Left nav menu -->
-     <div v-if="navOpen" class="fixed inset-0 z-50" @click="navOpen = false">
+     <div v-if="navOpen" class="fixed inset-0 z-[100]" @click="navOpen = false">
        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
        <div class="absolute top-0 left-0 bottom-0 w-64 bg-gray-900 p-4 overflow-y-auto" @click.stop>
          <div class="flex items-center justify-between mb-6">
