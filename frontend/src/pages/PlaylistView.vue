@@ -1,202 +1,93 @@
 <script setup>
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import WaveformVisual from '../components/WaveformVisual.vue'
+import { useMusicPlayer } from '../composables/useMusicPlayer.js'
 
 const props = defineProps(['user'])
 const router = useRouter()
 const route = useRoute()
 
-const playlist = ref(null)
-const displaySongs = ref([])
-const originalOrder = ref([])
-const currentIndex = ref(-1)
-const shuffled = ref(false)
-const repeat = ref(false)
-const playing = ref(false)
-const audio = ref(null)
-const currentTime = ref(0)
-const duration = ref(0)
-
-const loadPlaylist = async () => {
-  const { id } = route.params
-  if (!id || !props.user) return
-
-  if (id === 'my-songs') {
-    const songs = await API.get('/music', { user_id: props.user.id })
-    playlist.value = { type: 'virtual', name: 'My Songs' }
-    originalOrder.value = songs.filter(m => m.added_by === props.user.id)
-  } else if (id === 'all-songs') {
-    const songs = await API.get('/music', { user_id: props.user.id })
-    playlist.value = { type: 'virtual', name: 'All Songs' }
-    originalOrder.value = songs
-  } else {
-    const playlists = await API.get('/playlists', { user_id: props.user.id })
-    const pl = playlists.find(p => p.id === parseInt(id))
-    if (pl) {
-      playlist.value = pl
-      const allMusic = await API.get('/music', { user_id: props.user.id })
-      originalOrder.value = (pl.songs || [])
-        .map(s => allMusic.find(m => m.id === s.music_id))
-        .filter(Boolean)
-    }
-  }
-
-  displaySongs.value = [...originalOrder.value]
-  shuffled.value = JSON.parse(localStorage.getItem(`playlist_${id}_shuffled`) || 'false')
-  if (shuffled.value) shuffleOrder()
-}
-
-const shuffleOrder = () => {
-  const arr = [...displaySongs.value]
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  const currentSongId = displaySongs.value[currentIndex.value]?.id
-  displaySongs.value = arr
-  currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
-}
+const {
+  playlist,
+  playlistId,
+  displaySongs,
+  currentIndex,
+  shuffled,
+  playing,
+  audio,
+  currentTime,
+  duration,
+  currentSong,
+  playSong,
+  togglePlay,
+  next,
+  prev,
+  toggleRepeat,
+  playFirst,
+  shufflePlay,
+  loadPlaylistSongs,
+  isCurrentPlaylist,
+  formatTime,
+  cleanTitle,
+  stop
+} = useMusicPlayer()
 
 const getPlaylistId = () => {
   const { id } = route.params
   return id || 'unknown'
 }
 
-const playSong = (index) => {
-  currentIndex.value = index
-  playing.value = true
-  currentTime.value = 0
-  if (audio.value) {
-    audio.value.src = `/api/music/${displaySongs.value[index].id}/file?t=${Date.now()}`
-    audio.value.load()
-    audio.value.play().catch(() => {})
-  }
-}
+const loadPlaylist = async () => {
+  const { id } = route.params
+  if (!id || !props.user) return
 
-const playFirst = () => {
-  if (shuffled.value) {
-    shuffled.value = false
-    localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, 'false')
-    displaySongs.value = [...originalOrder.value]
-    currentIndex.value = 0
-  }
-  if (displaySongs.value.length > 0) playSong(0)
-}
+  let pl = null
+  let songs = []
 
-const togglePlay = () => {
-  if (!audio.value) return
-  playing.value = !playing.value
-  if (playing.value) {
-    audio.value.play().catch(() => {})
+  if (id === 'my-songs') {
+    const allSongs = await API.get('/music', { user_id: props.user.id })
+    pl = { type: 'virtual', name: 'My Songs' }
+    songs = allSongs.filter(m => m.added_by === props.user.id)
+  } else if (id === 'all-songs') {
+    const allSongs = await API.get('/music', { user_id: props.user.id })
+    pl = { type: 'virtual', name: 'All Songs' }
+    songs = allSongs
   } else {
-    audio.value.pause()
+    const playlists = await API.get('/playlists', { user_id: props.user.id })
+    const found = playlists.find(p => p.id === parseInt(id))
+    if (found) {
+      pl = found
+      const allMusic = await API.get('/music', { user_id: props.user.id })
+      songs = (found.songs || [])
+        .map(s => allMusic.find(m => m.id === s.music_id))
+        .filter(Boolean)
+    }
   }
-}
 
-const next = () => {
-  if (currentIndex.value < displaySongs.value.length - 1) {
-    playSong(currentIndex.value + 1)
-  } else if (repeat.value) {
-    playSong(0)
+  if (pl) {
+    loadPlaylistSongs(songs, pl, id)
   }
-}
-
-const prev = () => {
-  if (audio.value && audio.value.currentTime > 3) {
-    audio.value.currentTime = 0
-  } else if (currentIndex.value > 0) {
-    playSong(currentIndex.value - 1)
-  }
-}
-
-const toggleShuffle = () => {
-  shuffled.value = !shuffled.value
-  localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, shuffled.value.toString())
-  if (shuffled.value) {
-    shuffleOrder()
-  } else {
-    const currentSongId = displaySongs.value[currentIndex.value]?.id
-    displaySongs.value = [...originalOrder.value]
-    currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
-  }
-}
-
-const toggleRepeat = () => { repeat.value = !repeat.value }
-
-const currentSong = computed(() => {
-  if (displaySongs.value.length === 0) return null
-  return currentIndex.value >= 0 ? displaySongs.value[currentIndex.value] : displaySongs.value[0]
-})
-
-const cleanTitle = (title) => {
-  if (!title) return title
-  return title.replace(/\s*\[[^\]]+\]\s*$/, '')
-}
-
-const formatTime = (seconds) => {
-  if (!seconds || isNaN(seconds)) return '0:00'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-const seekTo = (event) => {
-  if (!audio.value || !duration.value) return
-  const percent = event.offsetX / event.target.clientWidth
-  audio.value.currentTime = percent * duration.value
-}
-
-const shufflePlay = () => {
-  if (!shuffled.value) {
-    shuffled.value = true
-    localStorage.setItem(`playlist_${getPlaylistId()}_shuffled`, 'true')
-    shuffleOrder()
-  }
-  if (displaySongs.value.length > 0) playSong(0)
-}
-
-const addToPlaylist = async (musicId, targetPlaylistId) => {
-  await API.post(`/playlists/${targetPlaylistId}/add`, { music_id: musicId })
 }
 
 const removeFromPlaylist = async (musicId) => {
-  if (!playlist.value) return
+  if (!playlist.value || playlist.value.type === 'virtual') return
   await API.delete(`/playlists/${playlist.value.id}/remove/${musicId}`)
   loadPlaylist()
 }
 
 const close = () => {
-  if (audio.value) {
-    audio.value.pause()
-    audio.value.src = ''
-  }
   router.push('/music')
 }
 
 onMounted(() => {
-  audio.value = new Audio()
-  audio.value.addEventListener('ended', next)
-  audio.value.addEventListener('loadedmetadata', () => {
-    duration.value = audio.value.duration
-  })
-  audio.value.addEventListener('timeupdate', () => {
-    currentTime.value = audio.value.currentTime
-  })
   loadPlaylist()
 })
 
 watch(() => route.params.id, () => {
   loadPlaylist()
-})
-
-onUnmounted(() => {
-  if (audio.value) {
-    audio.value.pause()
-    audio.value.src = ''
-  }
 })
 </script>
 
@@ -235,21 +126,6 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800/70 backdrop-blur-sm border-t border-gray-700 p-2 z-50">
-      <div class="text-center mb-2">
-        <span class="text-sm font-medium truncate">{{ cleanTitle(currentSong.title) }}</span>
-        •
-        <span class="text-xs text-gray-400 truncate">{{ currentSong.artist }}</span>
-      </div>
-      <div class="flex items-center justify-center gap-10">
-        <button @click="prev" class="text-white"><FontAwesomeIcon :icon="['fas', 'backward']" /></button>
-        <button @click="togglePlay" class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black">
-          <FontAwesomeIcon :icon="['fas', playing ? 'pause' : 'play']" />
-        </button>
-        <button @click="next" class="text-white"><FontAwesomeIcon :icon="['fas', 'forward']" /></button>
       </div>
     </div>
   </div>

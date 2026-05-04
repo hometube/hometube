@@ -2,14 +2,29 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import { faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRedo, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck, faList, faTv, faHeadphones, faSave, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRefresh, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck, faList, faTv, faHeadphones, faSave, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { API } from './api.js'
+import { useMusicPlayer } from './composables/useMusicPlayer.js'
 
-library.add(faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRedo, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck, faList, faTv, faHeadphones, faSave, faArrowLeft)
+library.add(faHome, faVideo, faMusic, faBars, faPlay, faPause, faForward, faBackward, faRandom, faRefresh, faEllipsisV, faHeart, faTrash, faPlus, faSearch, faFilter, faEye, faEyeSlash, faDownload, faCog, faTimes, faCheck,faList,faTv,faHeadphones,faSave,faArrowLeft)
 
 const router = useRouter()
 const route = useRoute()
+
+const {
+  playlistId,
+  currentIndex,
+  playing,
+  currentSong,
+  togglePlay,
+  next,
+  prev,
+  repeat,
+  toggleRepeat,
+  isCurrentPlaylist,
+  cleanTitle
+} = useMusicPlayer()
 
 const currentUser = ref(JSON.parse(localStorage.getItem('user') || 'null'))
 const navOpen = ref(false)
@@ -22,6 +37,18 @@ const mode = computed(() => {
   return 'user'
 })
 const modeLabel = computed(() => mode.value === 'video' ? 'Video' : 'Music')
+
+const onPlaylistPage = computed(() => {
+  if (!route.path.startsWith('/music/playlist/')) return false
+  const id = route.params.id || route.path.split('/').pop()
+  return isCurrentPlaylist(String(id))
+})
+
+const goToCurrentPlaylist = () => {
+  if (playlistId.value) {
+    router.push(`/music/playlist/${playlistId.value}`)
+  }
+}
 
 const setUser = (user) => {
   currentUser.value = user
@@ -116,5 +143,27 @@ onUnmounted(() => {
      </div>
 
      <router-view :user="currentUser" @select="setUser" />
+
+     <!-- Global Music Player -->
+     <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-3 z-[90]">
+       <div class="text-center mb-2">
+        <span class="text-sm font-medium truncate">{{ cleanTitle(currentSong.title) }}</span>
+        •
+        <span class="text-xs text-gray-400 truncate">{{ currentSong.artist }}</span>
+      </div>
+       <div class="flex items-center justify-center gap-10">
+         <button @click="goToCurrentPlaylist" :class="onPlaylistPage ? 'text-gray-400/70' : 'text-white'" class="w-6">
+           <FontAwesomeIcon :icon="['fas', 'eye']" />
+         </button>
+         <button @click="prev" class="text-white"><FontAwesomeIcon :icon="['fas', 'backward']" /></button>
+         <button @click="togglePlay" class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black">
+           <FontAwesomeIcon :icon="['fas', playing ? 'pause' : 'play']" />
+          </button>
+          <button @click="next" class="text-white"><FontAwesomeIcon :icon="['fas', 'forward']" /></button>
+          <button @click="toggleRepeat" :class="repeat ? 'text-white' : 'text-gray-400/70'" class="w-6">
+            <FontAwesomeIcon :icon="['fas', 'refresh']" />
+          </button>
+       </div>
+     </div>
    </div>
 </template>
