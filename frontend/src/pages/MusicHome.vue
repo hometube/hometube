@@ -52,7 +52,7 @@ onMounted(load)
       <div @click="selectAllSongs"
         class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-700">
         <div class="font-medium">All Songs</div>
-        <div class="text-xs text-gray-400">{{ songs.length }} songs</div>
+        <div class="text-xs text-gray-400">{{ songs?.length || 0 }} songs</div>
       </div>
       <div v-for="pl in playlists" :key="pl.id" @click="selectPlaylist(pl)"
         class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-700">

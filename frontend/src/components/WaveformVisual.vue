@@ -1,13 +1,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 
-const props = defineProps(['audioElement', 'playing'])
+const props = defineProps(['audioElement', 'playing', 'subtle'])
 
 const canvas = ref(null)
 let animFrameId = null
 let audioContext = null
 let analyser = null
 let dataArray = null
+let source = null
 let rotation = 0
 
 const initAnalyser = () => {
@@ -18,7 +19,7 @@ const initAnalyser = () => {
     audioContext = new (window.AudioContext || window.webkitAudioContext)()
     analyser = audioContext.createAnalyser()
     analyser.fftSize = 256
-    const source = audioContext.createMediaElementSource(props.audioElement)
+    source = audioContext.createMediaElementSource(props.audioElement)
     source.connect(analyser)
     analyser.connect(audioContext.destination)
     dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -48,14 +49,15 @@ const drawWaveform = () => {
   ctx.clearRect(0, 0, w, h)
 
   const barCount = dataArray.length
-  const angleStep = (Math.PI * 2) / barCount
+  const angleSize = Math.PI * 2 / barCount
+  const angleStep = angleSize * (6 + barCount) / 3
 
   rotation += 0.01
   const avgIntensity = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
   for (let i = 0; i < barCount; i++) {
-    const value = (dataArray[i] + avgIntensity) / (255 * 2)
-    const barHeight = value * maxRadius * 0.5
+    const value = (dataArray[i] + avgIntensity / 1.3) / (255 * 2)
+    const barHeight = value * maxRadius * 0.8
     const angle = i * angleStep + rotation
 
     const x1 = cx + Math.cos(angle) * (maxRadius - barHeight)
@@ -63,9 +65,10 @@ const drawWaveform = () => {
     const x2 = cx + Math.cos(angle) * fullFill
     const y2 = cy + Math.sin(angle) * fullFill
 
-    const hue = (i / barCount * 60 + Date.now() / 50) % 360
-    ctx.strokeStyle = `hsl(${hue}, 70%, ${30 + value * 30}%)`
-    ctx.lineWidth = 3
+    const hue = (i / barCount * 60 + Date.now() / 30) % 360
+    const opacity = props.subtle ? 0.3 : 0.6
+    ctx.strokeStyle = `hsla(${hue}, 70%, ${30 + value * 30}%, ${opacity})`
+    ctx.lineWidth = props.subtle ? 1 : 3
     ctx.beginPath()
     ctx.moveTo(x1, y1)
     ctx.lineTo(x2, y2)
@@ -87,14 +90,17 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (animFrameId) cancelAnimationFrame(animFrameId)
-  if (audioContext) {
-    audioContext.close()
-    audioContext = null
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId)
+    animFrameId = null
   }
 })
 </script>
 
 <template>
-  <canvas ref="canvas" class="absolute inset-0 w-full h-full opacity-60 blur-xl"></canvas>
+  <canvas
+    ref="canvas"
+    class="pointer-events-none z-[90] absolute inset-0 w-full h-full transition-all duration-300"
+    :class="subtle ? 'opacity-40 blur-2xl' : 'opacity-70 blur-xl'"
+  ></canvas>
 </template>

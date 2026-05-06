@@ -3,7 +3,6 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import WaveformVisual from '../components/WaveformVisual.vue'
 import { useMusicPlayer } from '../composables/useMusicPlayer.js'
 
 const props = defineProps(['user'])
@@ -94,7 +93,6 @@ watch(() => route.params.id, () => {
 <template>
   <div class="fixed top-12 inset-0 bg-gray-900 z-50 flex flex-col">
     <div class="flex-1 overflow-hidden relative">
-      <WaveformVisual :audioElement="audio" :playing="playing" />
       <div class="relative z-10 h-full overflow-y-auto pb-24">
         <div class="p-4 py-8">
           <div class="font-bold text-lg text-center mb-4">{{ playlist?.name || 'Songs' }}</div>
