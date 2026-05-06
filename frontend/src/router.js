@@ -6,11 +6,13 @@ import AddChannel from './pages/AddChannel.vue'
 import MusicHome from './pages/MusicHome.vue'
 import AddMusic from './pages/AddMusic.vue'
 import PlaylistView from './pages/PlaylistView.vue'
+import AboutPage from './pages/AboutPage.vue'
 import { API } from './api.js'
 
 const routes = [
-  { path: '/', redirect: '/user' },
+  { path: '/', name: 'home', component: UserPage }, // Changed redirect to direct component
   { path: '/user', name: 'user', component: UserPage },
+  { path: '/about', name: 'about', component: AboutPage },
   { path: '/video', name: 'video', component: VideoHome },
   { path: '/video/add', name: 'video-add', component: AddVideo },
   { path: '/video/channel', name: 'video-channel', component: AddChannel },
@@ -26,7 +28,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
-  if (!user && to.name !== 'user') {
+  if (!user && to.name !== 'user' && to.name !== 'about') {
     next('/user')
   } else {
     next()

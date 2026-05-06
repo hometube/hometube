@@ -1,12 +1,22 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { API } from '../api.js'
+import { useRoute } from 'vue-router'
 
 const emit = defineEmits(['select'])
+const route = useRoute()
 const username = ref('')
 const users = ref([])
 const backendUrl = ref(localStorage.getItem('backendUrl') || '')
 const showBackendSettings = ref(false)
+
+const isGitHubPages = computed(() => {
+  return location.hostname.endsWith('github.io')
+})
+
+const showDocumentationBanner = computed(() => {
+  return !username.value && isGitHubPages.value && route.path === '/'
+})
 
 const loadUsers = async () => {
   try {
@@ -42,6 +52,32 @@ onMounted(loadUsers)
 
 <template>
   <div class="p-4">
+    <!-- Documentation Banner for GitHub Pages -->
+    <div v-if="showDocumentationBanner" class="bg-blue-900 text-blue-200 p-4 mb-6 rounded-lg">
+      <div class="flex items-start space-x-4">
+        <div class="flex-shrink-0">
+          <FontAwesomeIcon :icon="['fas', 'info-circle']" class="text-xl mt-0.5" />
+        </div>
+        <div>
+          <h3 class="font-semibold text-white mb-2">Welcome to HomeTube!</h3>
+          <p class="text-sm mb-2">
+            You're using the hosted version at hometube.github.io. To get started:
+          </p>
+          <ul class="list-disc list-inside text-xs space-y-1">
+            <li>Visit <a href="/about" class="underline hover:text-white">About page</a> to learn about the project</li>
+            <li>Configure your backend URL below (e.g., http://localhost:8000)</li>
+            <li>Create a user to personalize your experience</li>
+            <li>Start adding videos and music to your library</li>
+          </ul>
+          <p class="mt-2 text-xs">
+            <a href="https://github.com/hometube/hometube" class="underline hover:text-white" target="_blank">
+              View source code on GitHub
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+    
     <h2 class="text-xl font-bold mb-4">Select User</h2>
     <input v-model="username" placeholder="Enter username" class="w-full p-3 mb-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
     <button @click="saveUser" class="w-full p-3 bg-gray-700 rounded-lg text-white mb-4">Select User</button>
