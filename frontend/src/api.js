@@ -1,12 +1,14 @@
 const API = {
-  base: '/api',
+  getBaseUrl() {
+    return localStorage.getItem('backendUrl') || '/api'
+  },
   async get(path, params = {}) {
     const q = new URLSearchParams(params).toString()
-    const res = await fetch(`${this.base}${path}?${q}`)
+    const res = await fetch(`${this.getBaseUrl()}${path}?${q}`)
     return res.json()
   },
   async post(path, body = {}) {
-    const res = await fetch(`${this.base}${path}`, {
+    const res = await fetch(`${this.getBaseUrl()}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -14,7 +16,7 @@ const API = {
     return res.json()
   },
   async delete(path) {
-    const res = await fetch(`${this.base}${path}`, { method: 'DELETE' })
+    const res = await fetch(`${this.getBaseUrl()}${path}`, { method: 'DELETE' })
     return res.json()
   },
   async downloadFile(url, filename) {

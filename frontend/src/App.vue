@@ -24,7 +24,7 @@ const {
 const currentUser = ref(JSON.parse(localStorage.getItem('user') || 'null'))
 const navOpen = ref(false)
 const installPrompt = ref(null)
-const showInstall = ref(false)
+const showInstall = ref(true)
 
 const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'

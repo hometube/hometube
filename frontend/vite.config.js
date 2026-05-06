@@ -23,7 +23,11 @@ export default defineConfig({
       }
     })
   ],
-  build: { outDir: 'dist' },
+  base: '/',
+  build: { 
+    outDir: 'docs',
+    assetsDir: 'assets'
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:8000'
