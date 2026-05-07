@@ -18,4 +18,6 @@ pip install -r requirements.txt
 
 # Start the backend with dev flag for ngrok
 echo "🔌 Starting backend server with ngrok tunnel..."
+echo "📝 Note: If ngrok fails to connect, the server will run in local-only mode"
+echo ""
 python main.py --dev

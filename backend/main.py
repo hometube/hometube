@@ -469,4 +469,8 @@ async def serve_spa(fullpath: str):
     index_path = os.path.join(frontend_dist, "index.html")
     if os.path.isfile(index_path):
         return FileResponse(index_path)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
     raise HTTPException(404)
