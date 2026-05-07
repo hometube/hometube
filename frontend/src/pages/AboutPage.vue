@@ -77,11 +77,11 @@
         </ul>
       </section>
       
-      <div class="text-center mt-8">
-        <a href="/user" class="bg-d30f0f hover:bg-b30c0c text-white font-bold py-3 px-6 rounded-lg transition-colors">
-          Get Started → Configure Backend & Create User
-        </a>
-      </div>
+<div class="text-center mt-8">
+  <a href="/setup" class="bg-d30f0f hover:bg-b30c0c text-white font-bold py-3 px-6 rounded-lg transition-colors">
+    Get Started
+  </a>
+</div>
     </div>
   </div>
 </template>
