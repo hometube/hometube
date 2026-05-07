@@ -34,12 +34,12 @@
                class="w-full p-2 bg-gray-900 border border-gray-600 rounded-lg text-white" />
       </div>
       
-      <div class="flex justify-between items-center">
-        <button @click="saveUser" 
-                :disabled="!username.value.trim()"
-                class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50">
-          Create User
-        </button>
+       <div class="flex justify-between items-center">
+         <button @click="saveUser" 
+                 :disabled="!username.value || !username.value.trim()"
+                 class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50">
+           Create User
+         </button>
         
         <button @click="loadUsers" 
                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors">
@@ -79,7 +79,7 @@ const loadUsers = async () => {
 }
 
 const saveUser = async () => {
-  if (!username.value.trim()) return
+  if (!username.value || !username.value.trim()) return
   
   try {
     const user = await API.post('/users', { username: username.value.trim() })

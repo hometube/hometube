@@ -67,7 +67,7 @@ const saveBackendUrl = () => {
 }
 
 const testConnection = async () => {
-  if (!backendUrl.value.trim()) {
+  if (!backendUrl.value || !backendUrl.value.trim()) {
     backendUrlError.value = 'Please enter a backend URL'
     return
   }
