@@ -67,29 +67,32 @@ onMounted(loadUsers)
     </div>
     
     <h2 class="text-xl font-bold mb-4">Select User</h2>
-    <input v-model="username" placeholder="Enter username" class="w-full p-3 mb-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
-    <button @click="saveUser" class="w-full p-3 bg-gray-700 rounded-lg text-white mb-4">Select User</button>
+    <div class="flex justify-between items-center">
+      <input v-model="username" placeholder="Enter username" class="flex-1 p-3 mb-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+      <button @click="saveUser" class="p-3 bg-gray-700 rounded-lg text-white mb-4">Create</button>
+    </div>
+
+    <h3 class="text-lg mb-2">Existing Users</h3>
+    <div v-for="u in users" :key="u.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 flex justify-between items-center">
+      <span>{{ u.username }}</span>
+      <button @click="selectExisting(u)" class="px-3 py-1 bg-gray-600 rounded text-sm">Select</button>
+    </div>
     
     <!-- Always visible Backend URL input -->
     <div class="mb-6">
       <label class="block text-sm font-medium text-white mb-2">Backend URL</label>
       <div class="flex items-center space-x-2">
         <input v-model="backendUrl" 
-               placeholder="e.g., http://localhost:8000 or https://your-domain.com" 
-               class="flex-1 p-2 bg-gray-900 border border-gray-600 rounded-lg text-white" />
+                placeholder="e.g., https://abc123.ngrok.io/api?token=your-secret-code" 
+                class="flex-1 p-2 bg-gray-900 border border-gray-600 rounded-lg text-white" />
         <button @click="saveBackendUrl" class="p-2 bg-gray-700 rounded text-white">
           <FontAwesomeIcon :icon="['fas', 'save']" />
         </button>
       </div>
       <p class="text-xs text-gray-400 mt-1">
+        For ngrok or public URLs, add ?token=your-secret-code for basic protection.
         Leave empty to use default (/api). Useful when hosting frontend separately.
       </p>
-    </div>
-    
-    <h3 class="text-lg mb-2">Existing Users</h3>
-    <div v-for="u in users" :key="u.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 flex justify-between items-center">
-      <span>{{ u.username }}</span>
-      <button @click="selectExisting(u)" class="px-3 py-1 bg-gray-600 rounded text-sm">Select</button>
     </div>
   </div>
 </template>

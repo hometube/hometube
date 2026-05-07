@@ -52,6 +52,7 @@ Open `http://localhost:8000` in your browser.
 
 ### Development Mode
 
+#### Option 1: Standard Development (Hot Reload)
 Run both servers in separate terminals:
 
 ```bash
@@ -66,6 +67,37 @@ cd frontend
 npm install
 npm run dev
 # Runs on http://localhost:5173
+```
+
+#### Option 2: Development with Public URL (for GitHub Pages testing)
+This mode automatically sets up an ngrok tunnel to expose your local backend securely:
+
+```bash
+# Terminal: Backend with ngrok tunnel
+cd backend
+pip install -r requirements.txt
+python main.py --dev
+# This will show you a public URL to use with your GitHub Pages frontend
+```
+
+When running with `--dev`, the backend will:
+1. Automatically start an ngrok tunnel to your local port
+2. Display a secure public URL with an embedded token
+3. You can use this URL directly in your GitHub Pages frontend
+4. The token provides basic protection against unauthorized access
+
+Example output:
+```
+============================================================
+🚀 HomeTube Development Server Ready!
+============================================================
+Local API:     http://localhost:8000
+Public URL:    https://abc123.ngrok.io
+For github.io: https://abc123.ngrok.io/api?token=your-secret-token-here
+============================================================
+Share the 'For github.io' URL with your frontend to enable
+secure access to your local backend via GitHub Pages.
+============================================================
 ```
 
 ### Environment Variables

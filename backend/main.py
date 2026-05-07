@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,11 +8,18 @@ from typing import List, Optional
 import asyncio
 import re
 import os
+import secrets
 from contextlib import asynccontextmanager
+import sys
 
 from database import engine, get_db, Base
 import models
 from services import ytdlp, scheduler
+
+
+# Global variable to store the current ngrok token for display
+current_ngrok_token = None
+current_ngrok_url = None
 
 
 def clean_title(title):
@@ -63,18 +70,102 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Start background subscription checker
     asyncio.create_task(scheduler.check_subscriptions())
+    
+    # If running locally (not in production), set up ngrok tunnel
+    # Check if we're likely in a development environment
+    if len(sys.argv) > 1 and sys.argv[1] == "--dev":
+        try:
+            from pyngrok import ngrok, conf
+            
+            # Get the port from environment or default to 8000
+            port = int(os.environ.get("PORT", 8000))
+            
+            # Set auth token if available (optional for basic use)
+            # ngrok.set_auth_token(os.environ.get("NGROK_AUTH_TOKEN", ""))
+            
+            # Open a ngrok tunnel to the HTTP port
+            http_tunnel = ngrok.connect(port, "http")
+            global current_ngrok_url, current_ngrok_token
+            current_ngrok_url = http_tunnel.public_url
+            
+            # Generate a random token for basic protection
+            current_ngrok_token = secrets.token_urlsafe(32)
+            
+            print("\n" + "="*60)
+            print("🚀 HomeTube Development Server Ready!")
+            print("="*60)
+            print(f"Local API:     http://localhost:{port}")
+            print(f"Public URL:    {current_ngrok_url}")
+            print(f"For github.io: {current_ngrok_url}/api?token={current_ngrok_token}")
+            print("="*60)
+            print("Share the 'For github.io' URL with your frontend to enable")
+            print("secure access to your local backend via GitHub Pages.")
+            print("="*60 + "\n")
+        except ImportError:
+            print("⚠️  pyngrok not installed. Install with: pip install pyngrok")
+            print("   Running in local-only mode.")
+        except Exception as e:
+            print(f"⚠️  Failed to start ngrok tunnel: {e}")
+            print("   Running in local-only mode.")
+    
     yield
+    
+    # Clean up ngrok tunnel on shutdown
+    if len(sys.argv) > 1 and sys.argv[1] == "--dev":
+        try:
+            from pyngrok import ngrok
+            ngrok.kill()
+        except:
+            pass
 
 app = FastAPI(lifespan=lifespan)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Dependency to validate token for protected endpoints
+async def verify_token(request: Request):
+    global current_ngrok_token
+    
+    # If no token is set (production mode with proper cert), allow all
+    if not current_ngrok_token:
+        return True
+        
+    # Get token from query params or Authorization header
+    token = None
+    
+    # Check query parameters first
+    if request.query_params.get('token'):
+        token = request.query_params.get('token')
+    # Then check Authorization header
+    elif request.headers.get('authorization'):
+        auth_header = request.headers.get('authorization')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+    
+    # Validate token
+    if token and token == current_ngrok_token:
+        return True
+    elif not current_ngrok_token:  # No token required in production mode
+        return True
+    else:
+        raise HTTPException(status_code=403, detail="Invalid or missing token")
+
 # Users
 @app.get("/api/users")
-def list_users(db: Session = Depends(get_db)):
+def list_users(token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     return db.query(models.User).all()
 
 @app.post("/api/users")
-def create_user(data: UserCreate, db: Session = Depends(get_db)):
+def create_user(data: UserCreate, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == data.username).first()
     if not user:
         user = models.User(username=data.username)
@@ -85,7 +176,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
 
 # Channels
 @app.post("/api/channels/add")
-def add_channel(data: ChannelAdd, db: Session = Depends(get_db)):
+def add_channel(data: ChannelAdd, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     info = ytdlp.get_video_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid channel URL")
@@ -96,7 +187,7 @@ def add_channel(data: ChannelAdd, db: Session = Depends(get_db)):
     return chan
 
 @app.get("/api/channels/{chan_id}/videos")
-def get_channel_videos(chan_id: int, db: Session = Depends(get_db)):
+def get_channel_videos(chan_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     chan = db.query(models.Channel).filter(models.Channel.id == chan_id).first()
     if not chan:
         raise HTTPException(404)
@@ -104,7 +195,7 @@ def get_channel_videos(chan_id: int, db: Session = Depends(get_db)):
     return videos
 
 @app.post("/api/channels/{chan_id}/subscribe")
-def subscribe(chan_id: int, data: SubscribeReq, db: Session = Depends(get_db)):
+def subscribe(chan_id: int, data: SubscribeReq, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     sub = models.Subscription(channel_id=chan_id, user_id=data.user_id, criteria=data.criteria, check_interval=data.check_interval)
     db.add(sub)
     db.commit()
@@ -112,7 +203,7 @@ def subscribe(chan_id: int, data: SubscribeReq, db: Session = Depends(get_db)):
 
 # Videos
 @app.post("/api/videos/add")
-def add_video(data: VideoAdd, db: Session = Depends(get_db)):
+def add_video(data: VideoAdd, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     info = ytdlp.get_video_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid video URL")
@@ -123,7 +214,7 @@ def add_video(data: VideoAdd, db: Session = Depends(get_db)):
     return vid
 
 @app.get("/api/videos")
-def list_videos(user_id: int = None, filter: str = "all", db: Session = Depends(get_db)):
+def list_videos(user_id: int = None, filter: str = "all", token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     q = db.query(models.Video)
     if user_id:
         q = q.filter(models.Video.added_by == user_id)
@@ -132,7 +223,7 @@ def list_videos(user_id: int = None, filter: str = "all", db: Session = Depends(
     return q.order_by(models.Video.created_at.desc()).all()
 
 @app.post("/api/videos/{vid_id}/watch")
-def watch_video(vid_id: int, data: VideoWatch, db: Session = Depends(get_db)):
+def watch_video(vid_id: int, data: VideoWatch, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
     if not vid:
         raise HTTPException(404)
@@ -142,7 +233,7 @@ def watch_video(vid_id: int, data: VideoWatch, db: Session = Depends(get_db)):
     return {"ok": True}
 
 @app.post("/api/videos/{vid_id}/keep")
-def keep_video(vid_id: int, data: VideoKeep, db: Session = Depends(get_db)):
+def keep_video(vid_id: int, data: VideoKeep, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
     if not vid:
         raise HTTPException(404)
@@ -151,7 +242,7 @@ def keep_video(vid_id: int, data: VideoKeep, db: Session = Depends(get_db)):
     return {"ok": True}
 
 @app.post("/api/videos/{vid_id}/download")
-def download_video(vid_id: int, data: dict, db: Session = Depends(get_db)):
+def download_video(vid_id: int, data: dict, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
     if not vid:
         raise HTTPException(404)
@@ -162,26 +253,26 @@ def download_video(vid_id: int, data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 @app.get("/api/videos/{vid_id}/qualities")
-def get_video_qualities(vid_id: int, db: Session = Depends(get_db)):
+def get_video_qualities(vid_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
     if not vid:
         raise HTTPException(404)
     return ytdlp.get_available_formats(vid.url)
 
 @app.get("/api/videos/info")
-def get_video_info_by_url(url: str):
+def get_video_info_by_url(url: str, token_valid: bool = Depends(verify_token)):
     return ytdlp.get_available_formats(url)
 
 # Playlists
 @app.get("/api/playlists")
-def list_playlists(user_id: int = None, db: Session = Depends(get_db)):
+def list_playlists(user_id: int = None, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     q = db.query(models.Playlist)
     if user_id:
         q = q.filter(models.Playlist.user_id == user_id)
     return q.order_by(models.Playlist.created_at.desc()).all()
 
 @app.post("/api/playlists")
-def create_playlist(data: PlaylistCreate, db: Session = Depends(get_db)):
+def create_playlist(data: PlaylistCreate, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     playlist = models.Playlist(name=data.name, user_id=data.user_id)
     db.add(playlist)
     db.commit()
@@ -189,7 +280,7 @@ def create_playlist(data: PlaylistCreate, db: Session = Depends(get_db)):
     return playlist
 
 @app.post("/api/playlists/{playlist_id}/add")
-def add_to_playlist(playlist_id: int, data: PlaylistAddSong, db: Session = Depends(get_db)):
+def add_to_playlist(playlist_id: int, data: PlaylistAddSong, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     playlist = db.query(models.Playlist).filter(models.Playlist.id == playlist_id).first()
     if not playlist:
         raise HTTPException(404)
@@ -200,7 +291,7 @@ def add_to_playlist(playlist_id: int, data: PlaylistAddSong, db: Session = Depen
     return {"ok": True}
 
 @app.delete("/api/playlists/{playlist_id}/remove/{music_id}")
-def remove_from_playlist(playlist_id: int, music_id: int, db: Session = Depends(get_db)):
+def remove_from_playlist(playlist_id: int, music_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     playlist = db.query(models.Playlist).filter(models.Playlist.id == playlist_id).first()
     if not playlist:
         raise HTTPException(404)
@@ -209,7 +300,7 @@ def remove_from_playlist(playlist_id: int, music_id: int, db: Session = Depends(
     return {"ok": True}
 
 @app.delete("/api/playlists/{playlist_id}")
-def delete_playlist(playlist_id: int, db: Session = Depends(get_db)):
+def delete_playlist(playlist_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     playlist = db.query(models.Playlist).filter(models.Playlist.id == playlist_id).first()
     if not playlist:
         raise HTTPException(404)
@@ -219,11 +310,11 @@ def delete_playlist(playlist_id: int, db: Session = Depends(get_db)):
 
 # Music
 @app.get("/api/music/info")
-def get_music_info_by_url(url: str):
+def get_music_info_by_url(url: str, token_valid: bool = Depends(verify_token)):
     return ytdlp.get_music_info(url)
 
 @app.post("/api/music/add")
-def add_music(data: MusicAdd, db: Session = Depends(get_db)):
+def add_music(data: MusicAdd, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     info = ytdlp.get_music_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid music URL")
@@ -237,14 +328,14 @@ def add_music(data: MusicAdd, db: Session = Depends(get_db)):
     return music
 
 @app.get("/api/music")
-def list_music(user_id: int = None, db: Session = Depends(get_db)):
+def list_music(user_id: int = None, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     q = db.query(models.Music)
     if user_id:
         q = q.filter(models.Music.added_by == user_id)
     return q.order_by(models.Music.created_at.desc()).all()
 
 @app.post("/api/music/{music_id}/download")
-def download_music(music_id: int, data: MusicDownload, db: Session = Depends(get_db)):
+def download_music(music_id: int, data: MusicDownload, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     music = db.query(models.Music).filter(models.Music.id == music_id).first()
     if not music:
         raise HTTPException(404)
@@ -255,7 +346,7 @@ def download_music(music_id: int, data: MusicDownload, db: Session = Depends(get
     return {"ok": True, "filename": filename}
 
 @app.get("/api/music/{music_id}/file")
-def serve_music_by_id(music_id: int, db: Session = Depends(get_db)):
+def serve_music_by_id(music_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     music = db.query(models.Music).filter(models.Music.id == music_id).first()
     if not music:
         raise HTTPException(404)
@@ -338,7 +429,7 @@ def serve_music_by_id(music_id: int, db: Session = Depends(get_db)):
 
 # Downloads status
 @app.get("/api/downloads")
-def list_downloads(user_id: int = None, db: Session = Depends(get_db)):
+def list_downloads(user_id: int = None, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     q = db.query(models.Download)
     if user_id:
         q = q.filter(models.Download.user_id == user_id)
@@ -349,14 +440,14 @@ import os
 from fastapi.responses import FileResponse
 
 @app.get("/api/files/videos/{filename:path}")
-def serve_video(filename: str):
+def serve_video(filename: str, token_valid: bool = Depends(verify_token)):
     path = f"data/downloads/videos/{filename}"
     if not os.path.exists(path):
         raise HTTPException(404)
     return FileResponse(path, media_type="video/mp4", filename=filename)
 
 @app.get("/api/files/music/{filename:path}")
-def serve_music(filename: str):
+def serve_music(filename: str, token_valid: bool = Depends(verify_token)):
     path = f"data/downloads/music/{filename}"
     if not os.path.exists(path):
         raise HTTPException(404)

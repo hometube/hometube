@@ -44,7 +44,12 @@
             <strong>Set up your backend:</strong> Run the HomeTube backend server on your local machine or server.
           </li>
           <li class="mb-2">
-            <strong>Configure the frontend:</strong> Set your backend URL below (e.g., http://localhost:8000).
+            <strong>Configure the frontend:</strong> 
+            <ul class="list-disc list-inside mt-2 space-y-1">
+              <li>For development: Run <code class="bg-gray-800 px-1 py-0.5">python main.py --dev</code> to automatically start ngrok and get a secure URL</li>
+              <li>For manual setup: Use a URL like <code class="bg-gray-800 px-1 py-0.5">https://abc123.ngrok.io/api?token=your-secret-code</code></li>
+              <li>For direct local access (not recommended for github.io): <code class="bg-gray-800 px-1 py-0.5">http://localhost:8000/api</code></li>
+            </ul>
           </li>
           <li class="mb-2">
             <strong>Create a user:</strong> Add your username to personalize your experience.
