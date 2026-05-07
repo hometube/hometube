@@ -27,7 +27,9 @@ const API = {
     const { baseUrl, token } = this.getBaseUrlAndToken()
     const q = new URLSearchParams(params).toString()
     
-    const headers = {}
+    const headers = {
+      'ngrok-skip-browser-warning': 'true'
+    }
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -39,7 +41,10 @@ const API = {
   async post(path, body = {}) {
     const { baseUrl, token } = this.getBaseUrlAndToken()
     
-    const headers = { 'Content-Type': 'application/json' }
+    const headers = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    }
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -55,7 +60,9 @@ const API = {
   async delete(path) {
     const { baseUrl, token } = this.getBaseUrlAndToken()
     
-    const headers = {}
+    const headers = {
+      'ngrok-skip-browser-warning': 'true'
+    }
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -65,7 +72,10 @@ const API = {
   },
   
   async downloadFile(url, filename) {
-    const response = await fetch(url)
+    const headers = {
+      'ngrok-skip-browser-warning': 'true'
+    }
+    const response = await fetch(url, { headers })
     const blob = await response.blob()
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)

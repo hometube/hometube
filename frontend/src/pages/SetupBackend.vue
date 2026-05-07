@@ -23,9 +23,6 @@
           <input v-model="backendUrl" 
                  placeholder="e.g., http://localhost:8000/api or https://abc123.ngrok.io/api?token=your-secret-code" 
                  class="flex-1 p-2 bg-gray-900 border border-gray-600 rounded-lg text-white" />
-          <button @click="saveBackendUrl" class="p-2 bg-gray-700 rounded text-white">
-            Save
-          </button>
         </div>
         <p class="text-xs text-gray-400 mt-1">
           For ngrok or public URLs, add ?token=your-secret-code for basic protection.
