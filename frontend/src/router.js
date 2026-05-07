@@ -10,7 +10,7 @@ import AboutPage from './pages/AboutPage.vue'
 import { API } from './api.js'
 
 const routes = [
-  { path: '/', name: 'home', component: UserPage }, // Changed redirect to direct component
+  { path: '/', redirect: '/about' },
   { path: '/user', name: 'user', component: UserPage },
   { path: '/about', name: 'about', component: AboutPage },
   { path: '/video', name: 'video', component: VideoHome },
@@ -29,7 +29,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   if (!user && to.name !== 'user' && to.name !== 'about') {
-    next('/user')
+    next('/about')
   } else {
     next()
   }

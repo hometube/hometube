@@ -44,7 +44,7 @@
             <strong>Set up your backend:</strong> Run the HomeTube backend server on your local machine or server.
           </li>
           <li class="mb-2">
-            <strong>Configure the frontend:</strong> When you first visit the app, go to the User page and set your backend URL (e.g., http://localhost:8000).
+            <strong>Configure the frontend:</strong> Set your backend URL below (e.g., http://localhost:8000).
           </li>
           <li class="mb-2">
             <strong>Create a user:</strong> Add your username to personalize your experience.
@@ -73,8 +73,8 @@
       </section>
       
       <div class="text-center mt-8">
-        <a href="/" class="bg-d30f0f hover:bg-b30c0c text-white font-bold py-3 px-6 rounded-lg transition-colors">
-          Go to HomeTube
+        <a href="/user" class="bg-d30f0f hover:bg-b30c0c text-white font-bold py-3 px-6 rounded-lg transition-colors">
+          Get Started → Configure Backend & Create User
         </a>
       </div>
     </div>
