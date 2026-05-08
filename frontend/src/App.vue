@@ -79,8 +79,22 @@ onMounted(async () => {
   if (window.matchMedia('(display-mode: standalone)').matches) showInstall.value = false
   init()
   await restoreState()
-  checkConnection()
-  pingInterval = setInterval(checkConnection, 30000)
+  if (userStore.hasUser) {
+    checkConnection()
+    pingInterval = setInterval(checkConnection, 30000)
+  }
+})
+
+watch(() => userStore.hasUser, (hasUser) => {
+  if (hasUser && !pingInterval) {
+    checkConnection()
+    pingInterval = setInterval(checkConnection, 30000)
+  } else if (!hasUser && pingInterval) {
+    clearInterval(pingInterval)
+    pingInterval = null
+    backendOnline.value = false
+    backendChecked.value = false
+  }
 })
 
 onUnmounted(() => {
