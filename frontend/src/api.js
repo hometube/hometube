@@ -13,46 +13,58 @@ function getQueryToken() {
 
 function sendJWTToSW(token) {
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    console.log('[API] Sending JWT to SW:', token ? 'present' : 'empty')
     navigator.serviceWorker.controller.postMessage({
       type: 'SET_JWT',
       token: token
+    })
+  } else {
+    console.log('[API] No SW controller available')
+  }
+}
+
+function sendBackendUrlToSW(url) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    console.log('[API] Sending backend URL to SW:', url)
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SET_BACKEND_URL',
+      url: url
     })
   }
 }
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    console.log('[API] SW controller changed')
     sendJWTToSW(getJWT())
+    sendBackendUrlToSW(localStorage.getItem('backendUrl') || '')
   })
   if (navigator.serviceWorker.controller) {
+    console.log('[API] SW controller already active')
     sendJWTToSW(getJWT())
+    sendBackendUrlToSW(localStorage.getItem('backendUrl') || '')
+  } else {
+    console.log('[API] No active SW controller on load')
   }
+  
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    console.log('[API] SW registrations:', registrations.length)
+    registrations.forEach(reg => {
+      console.log('[API] - SW scope:', reg.scope, 'active:', !!reg.active)
+    })
+  })
 }
 
 function buildUrl(path, query = {}) {
-  const backendUrl = localStorage.getItem('backendUrl') || ''
-  if (backendUrl) {
-    const urlObj = new URL(backendUrl)
-    const basePath = urlObj.pathname.endsWith('/') ? urlObj.pathname.slice(0, -1) : urlObj.pathname
-    const newPath = path.startsWith('/') ? path : `/${path}`
-    urlObj.pathname = `${basePath}${newPath}`
-    Object.entries(query).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        urlObj.searchParams.append(key, val)
-      }
-    })
-    return urlObj.toString()
-  } else {
-    const url = `${BASE}${path}`
-    const params = new URLSearchParams()
-    Object.entries(query).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params.append(key, val)
-      }
-    })
-    const qs = params.toString()
-    return qs ? `${url}?${qs}` : url
-  }
+  const url = `${BASE}${path}`
+  const params = new URLSearchParams()
+  Object.entries(query).forEach(([key, val]) => {
+    if (val !== undefined && val !== null && val !== '') {
+      params.append(key, val)
+    }
+  })
+  const qs = params.toString()
+  return qs ? `${url}?${qs}` : url
 }
 
 export const API = {
@@ -105,13 +117,34 @@ export const API = {
     if (!res.ok) throw new Error('Token exchange failed')
     const data = await res.json()
     localStorage.setItem('jwt_token', data.token)
+    sendJWTToSW(data.token)
     return data.token
   },
 
-  downloadFile(url, filename) {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
+  async downloadFile(url, filename) {
+    console.log('[API] Downloading file:', url)
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = {}
+    if (jwt) {
+      headers['Authorization'] = `Bearer ${jwt}`
+    } else if (queryToken) {
+      headers['Authorization'] = `Bearer ${queryToken}`
+    }
+    
+    try {
+      const res = await fetch(url, { headers })
+      console.log('[API] Download response:', res.status, res.ok)
+      const blob = await res.blob()
+      console.log('[API] Blob received:', blob.size, 'bytes')
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch(err) {
+      console.error('[API] Download failed:', err)
+    }
   }
 }

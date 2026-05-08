@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faEye, faBackward, faPlay, faPause, faForward, faRedo } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -19,14 +20,18 @@ const {
   currentIndex,
   playing,
   currentSong,
+  repeat,
+  currentTime,
+  duration,
+} = storeToRefs(musicStore)
+
+const {
   togglePlay,
   next,
   prev,
-  repeat,
   toggleRepeat,
   isCurrentPlaylist,
-  cleanTitle,
-  currentTime
+  cleanTitle
 } = musicStore
 
 const onPlaylistPage = computed(() => {
@@ -43,10 +48,10 @@ const goToCurrentPlaylist = () => {
 </script>
 
 <template>
+  <WaveformVisual v-if="currentIndex > 0" :audioElement="audio" :playing="playing" :subtle="!onPlaylistPage" />
   <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-3 z-[90]">
-    <WaveformVisual :audioElement="audio" :playing="playing" :subtle="!onPlaylistPage" />
     <div class="absolute top-0 left-0 right-0">
-      <div class="h-1 bg-gray-200" :style="{ width: `${(currentTime / currentSong.duration) * 100}%` }"></div>
+      <div class="h-1 bg-gray-200" :style="{ width: `${(currentTime / duration) * 100}%` }"></div>
     </div>
     <div class="text-center mb-2">
       <span class="text-sm font-medium truncate">{{ cleanTitle(currentSong.title) }}</span>

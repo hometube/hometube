@@ -579,10 +579,12 @@ frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__f
 async def serve_spa(fullpath: str):
     # Try to serve static file first
     file_path = os.path.join(frontend_dist, fullpath)
+    print(f"[DEBUG] serve_spa: fullpath='{fullpath}', file_path='{file_path}', exists={os.path.isfile(file_path)}")
     if os.path.isfile(file_path):
         return FileResponse(file_path)
     # SPA fallback - return index.html for client-side routing
     index_path = os.path.join(frontend_dist, "index.html")
+    print(f"[DEBUG] serve_spa fallback: index_path='{index_path}', exists={os.path.isfile(index_path)}")
     if os.path.isfile(index_path):
         return FileResponse(index_path)
 

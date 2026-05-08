@@ -66,8 +66,7 @@ const drawWaveform = () => {
     const y2 = cy + Math.sin(angle) * fullFill
 
     const hue = (i / barCount * 60 + Date.now() / 30) % 360
-    const opacity = props.subtle ? 0.3 : 0.6
-    ctx.strokeStyle = `hsla(${hue}, 70%, ${30 + value * 30}%, ${opacity})`
+    ctx.strokeStyle = `hsla(${hue}, 85%, ${30 + value * 30}%, 1)`
     ctx.lineWidth = props.subtle ? 1 : 3
     ctx.beginPath()
     ctx.moveTo(x1, y1)
@@ -101,6 +100,6 @@ onUnmounted(() => {
   <canvas
     ref="canvas"
     class="pointer-events-none z-[90] absolute inset-0 w-full h-full transition-all duration-300"
-    :class="subtle ? 'opacity-40 blur-2xl' : 'opacity-70 blur-xl'"
+    :class="subtle ? 'opacity-70 blur-xl' : 'opacity-90 blur-lg'"
   ></canvas>
 </template>

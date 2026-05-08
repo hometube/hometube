@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '../stores/user.js'
@@ -22,6 +23,9 @@ const {
   currentTime,
   duration,
   currentSong,
+} = storeToRefs(musicStore)
+
+const {
   playSong,
   togglePlay,
   next,
@@ -36,40 +40,60 @@ const {
   stop
 } = musicStore
 
-const getPlaylistId = () => {
-  const { id } = route.params
-  return id || 'unknown'
-}
+const loading = ref(true)
+const error = ref(null)
 
 const loadPlaylist = async () => {
   const { id } = route.params
-  if (!id || !userStore.user) return
+  loading.value = true
+  error.value = null
 
-  let pl = null
-  let songs = []
-
-  if (id === 'my-songs') {
-    const allSongs = await API.get('/music', { user_id: userStore.user.id })
-    pl = { type: 'virtual', name: 'My Songs' }
-    songs = allSongs.filter(m => m.added_by === userStore.user.id)
-  } else if (id === 'all-songs') {
-    const allSongs = await API.get('/music', { user_id: userStore.user.id })
-    pl = { type: 'virtual', name: 'All Songs' }
-    songs = allSongs
-  } else {
-    const playlists = await API.get('/playlists', { user_id: userStore.user.id })
-    const found = playlists.find(p => p.id === parseInt(id))
-    if (found) {
-      pl = found
-      const allMusic = await API.get('/music', { user_id: userStore.user.id })
-      songs = (found.songs || [])
-        .map(s => allMusic.find(m => m.id === s.music_id))
-        .filter(Boolean)
-    }
+  if (!id) {
+    error.value = 'No playlist specified'
+    loading.value = false
+    return
   }
 
-  if (pl) {
-    loadPlaylistSongs(songs, pl, id)
+  if (!userStore.user) {
+    error.value = 'Please select a user first'
+    loading.value = false
+    return
+  }
+
+  try {
+    let pl = null
+    let songs = []
+
+    if (id === 'my-songs') {
+      const allSongs = await API.get('/music', { user_id: userStore.user.id })
+      pl = { type: 'virtual', name: 'My Songs' }
+      songs = allSongs.filter(m => m.added_by === userStore.user.id)
+    } else if (id === 'all-songs') {
+      const allSongs = await API.get('/music', { user_id: userStore.user.id })
+      pl = { type: 'virtual', name: 'All Songs' }
+      songs = allSongs
+    } else {
+      const playlists = await API.get('/playlists', { user_id: userStore.user.id })
+      const found = playlists.find(p => p.id === parseInt(id))
+      if (found) {
+        pl = found
+        const allMusic = await API.get('/music', { user_id: userStore.user.id })
+        songs = (found.songs || [])
+          .map(s => allMusic.find(m => m.id === s.music_id))
+          .filter(Boolean)
+      }
+    }
+
+    if (pl) {
+      loadPlaylistSongs(songs, pl, id)
+    } else {
+      error.value = 'Playlist not found'
+    }
+  } catch (e) {
+    error.value = 'Failed to load playlist'
+    console.error('Failed to load playlist:', e)
+  } finally {
+    loading.value = false
   }
 }
 

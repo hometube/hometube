@@ -7,8 +7,15 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      srcDir: 'src',
-      filename: 'sw.js',
+      strategies: 'injectManifest',
+      devOptions: {
+        enabled: true,
+      },
+      injectManifest: {
+        swSrc: 'public/sw.js',
+        swDest: 'dist/sw.js',
+        dontCacheBustURLsMatching: /\.\w{8}\./,
+      },
       manifest: {
         name: 'HomeTube',
         short_name: 'HomeTube',
@@ -22,12 +29,13 @@ export default defineConfig({
           { src: '/icon-256.png', sizes: '256x256', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
         ]
-      }
+      },
+      manifestFilename: 'manifest.json'
     })
   ],
   base: '/',
-  build: { 
-    outDir: 'docs',
+  build: {
+    outDir: 'dist',
     assetsDir: 'assets'
   },
   server: {
