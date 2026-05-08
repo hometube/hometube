@@ -79,6 +79,7 @@ const testConnection = async () => {
   }
 
   saveBackendUrl()
+  await new Promise(resolve => setTimeout(resolve, 100))
 
   try {
     // Test the connection using status endpoint (only needs ngrok token)

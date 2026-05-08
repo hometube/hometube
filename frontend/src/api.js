@@ -23,7 +23,7 @@ function sendJWTToSW(token) {
   }
 }
 
-function sendBackendUrlToSW(url) {
+export function sendBackendUrlToSW(url) {
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     console.log('[API] Sending backend URL to SW:', url)
     navigator.serviceWorker.controller.postMessage({
