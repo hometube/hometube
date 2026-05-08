@@ -13,9 +13,13 @@
         {{ backendUrlError }}
       </div>
       
-      <div v-if="backendSuccess" class="bg-green-900 text-green-200 p-4 mb-4 rounded-lg">
-        Backend configured successfully! Click below to continue to user setup.
-      </div>
+        <div v-if="backendSuccess" class="bg-green-900 text-green-200 p-4 mb-4 rounded-lg">
+          Backend configured successfully! Click below to continue to user setup.
+        </div>
+
+        <div v-if="tokenExchange" class="bg-blue-900 text-blue-200 p-4 mb-4 rounded-lg">
+          Exchanging temporary token for long-lived JWT...
+        </div>
       
       <div class="mb-6">
         <label class="block text-sm font-medium text-white mb-2">Backend URL</label>
@@ -55,11 +59,13 @@ import { useRouter } from 'vue-router'
 const backendUrl = ref('')
 const backendUrlError = ref('')
 const backendSuccess = ref(false)
+const tokenExchange = ref(false)
 const router = useRouter()
 
 const saveBackendUrl = () => {
   if (!backendUrl.value.trim()) {
     localStorage.removeItem('backendUrl')
+    localStorage.removeItem('jwt_token')
   } else {
     localStorage.setItem('backendUrl', backendUrl.value.trim())
   }
@@ -71,14 +77,34 @@ const testConnection = async () => {
     backendUrlError.value = 'Please enter a backend URL'
     return
   }
-  
+
   saveBackendUrl()
-  
+
   try {
-    // Test the connection by trying to get users (should return empty array or users)
-    await API.get('/users')
+    // Test the connection using status endpoint (only needs ngrok token)
+    await API.get('/status')
+
+    // Try to exchange temporary token for JWT if we have one
+    const url = backendUrl.value.trim()
+    const params = new URLSearchParams(url.split('?')[1] || '')
+    const tempToken = params.get('token')
+
+    if (tempToken) {
+      tokenExchange.value = true
+      try {
+        await API.exchangeToken(tempToken)
+        // Remove token from stored URL since we now use JWT
+        const cleanUrl = url.split('?')[0]
+        localStorage.setItem('backendUrl', cleanUrl)
+      } catch (e) {
+        console.error('Token exchange failed:', e)
+        // Continue anyway - will use temp token
+      }
+      tokenExchange.value = false
+    }
+
     backendSuccess.value = true
-    
+
     // Wait a moment then redirect to user setup
     setTimeout(() => {
       router.push('/setup/user')

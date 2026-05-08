@@ -11,6 +11,8 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 import sys
+import jwt
+from datetime import datetime, timedelta
 
 from database import engine, get_db, Base
 import models
@@ -20,6 +22,47 @@ from services import ytdlp, scheduler
 # Global variable to store the current ngrok token for display
 current_ngrok_token = None
 current_ngrok_url = None
+jwt_secret = None
+
+
+def get_jwt_secret(db: Session):
+    """Get or create the JWT secret from the database"""
+    global jwt_secret
+    if jwt_secret:
+        return jwt_secret
+
+    setting = db.query(models.Setting).filter(models.Setting.key == "jwt_secret").first()
+    if not setting:
+        jwt_secret = secrets.token_urlsafe(64)
+        setting = models.Setting(key="jwt_secret", value=jwt_secret)
+        db.add(setting)
+        db.commit()
+    else:
+        jwt_secret = setting.value
+    return jwt_secret
+
+
+def create_jwt_token(user_id: int, db: Session) -> str:
+    """Create a JWT token for a user"""
+    secret = get_jwt_secret(db)
+    payload = {
+        "user_id": user_id,
+        "exp": datetime.utcnow() + timedelta(days=365),  # Long-lived token
+        "iat": datetime.utcnow()
+    }
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+def verify_jwt_token(token: str, db: Session):
+    """Verify a JWT token and return the payload"""
+    try:
+        secret = get_jwt_secret(db)
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 def clean_title(title):
@@ -70,29 +113,46 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize JWT secret and persistent ngrok token
+    from sqlalchemy.orm import sessionmaker
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = SessionLocal()
+    try:
+        get_jwt_secret(db)
+
+        # Load or create persistent ngrok token
+        global current_ngrok_token
+        token_setting = db.query(models.Setting).filter(models.Setting.key == "ngrok_token").first()
+        if token_setting:
+            current_ngrok_token = token_setting.value
+        else:
+            current_ngrok_token = secrets.token_urlsafe(32)
+            token_setting = models.Setting(key="ngrok_token", value=current_ngrok_token)
+            db.add(token_setting)
+            db.commit()
+    finally:
+        db.close()
+
     # Start background subscription checker
     asyncio.create_task(scheduler.check_subscriptions())
-    
+
     # If running locally (not in production), set up ngrok tunnel
     # Check if we're likely in a development environment
     if len(sys.argv) > 1 and sys.argv[1] == "--dev":
         try:
             from pyngrok import ngrok, conf
-            
+
             # Get the port from environment or default to 8000
             port = int(os.environ.get("PORT", 8000))
-            
+
             # Set auth token if available (optional for basic use)
             # ngrok.set_auth_token(os.environ.get("NGROK_AUTH_TOKEN", ""))
-            
+
             # Open a ngrok tunnel to the HTTP port
             http_tunnel = ngrok.connect(port, "http")
-            global current_ngrok_url, current_ngrok_token
+            global current_ngrok_url
             current_ngrok_url = http_tunnel.public_url
-            
-            # Generate a random token for basic protection
-            current_ngrok_token = secrets.token_urlsafe(32)
-            
+
             print("\n" + "="*60)
             print("🚀 HomeTube Development Server Ready!")
             print("="*60)
@@ -109,9 +169,9 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️  Failed to start ngrok tunnel: {e}")
             print("   Running in local-only mode.")
-    
+
     yield
-    
+
     # Clean up ngrok tunnel on shutdown
     if len(sys.argv) > 1 and sys.argv[1] == "--dev":
         try:
@@ -122,33 +182,74 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS middleware
+# CORS middleware - allow all origins since we use Bearer tokens (not cookies)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://hometube.github.io",
-        "http://localhost:8080",  # For local development
-        "http://127.0.0.1:8080",  # For local development
-        "http://localhost:5173",  # Vite dev server
-        "http://127.0.0.1:5173",  # Vite dev server
-        "*",  # Allow all origins for ngrok
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Dependency to validate token for protected endpoints
-async def verify_token(request: Request):
+# Force CORS headers on all responses (handles ngrok headers)
+@app.middleware("http")
+async def force_cors(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning"
+    return response
+
+# Status endpoint - check backend connectivity (uses only ngrok token)
+@app.get("/api/status")
+def status(request: Request, db: Session = Depends(get_db)):
     global current_ngrok_token
-    
-    # If no token is set (production mode with proper cert), allow all
+
+    # Check for ngrok token in query params or Authorization header
+    token = request.query_params.get('token', '')
+    if not token and request.headers.get('authorization'):
+        auth = request.headers.get('authorization')
+        if auth.startswith('Bearer '):
+            token = auth[7:]
+
+    if current_ngrok_token and token != current_ngrok_token:
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+    return {"status": "ok", "version": "1.0"}
+
+# Token exchange endpoint - use temporary ngrok token to get a long-lived JWT
+@app.post("/api/auth/exchange")
+def exchange_token(data: dict, db: Session = Depends(get_db)):
+    global current_ngrok_token
+
+    # Validate the temporary ngrok token
+    token = data.get("token", "")
+    if not current_ngrok_token or token != current_ngrok_token:
+        raise HTTPException(status_code=403, detail="Invalid temporary token")
+
+    # Get or create a system user for the JWT
+    user = db.query(models.User).filter(models.User.username == "system").first()
+    if not user:
+        user = models.User(username="system")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # Create and return JWT
+    jwt_token = create_jwt_token(user.id, db)
+    return {"token": jwt_token, "token_type": "bearer"}
+
+# Dependency to validate JWT token for protected endpoints
+async def verify_token(request: Request, db: Session = Depends(get_db)):
+    global current_ngrok_token
+
+    # If no ngrok token is set (production mode), allow all
     if not current_ngrok_token:
         return True
-        
+
     # Get token from query params or Authorization header
     token = None
-    
+
     # Check query parameters first
     if request.query_params.get('token'):
         token = request.query_params.get('token')
@@ -157,14 +258,22 @@ async def verify_token(request: Request):
         auth_header = request.headers.get('authorization')
         if auth_header.startswith('Bearer '):
             token = auth_header[7:]  # Remove 'Bearer ' prefix
-    
-    # Validate token
-    if token and token == current_ngrok_token:
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    # Try JWT validation first
+    try:
+        payload = verify_jwt_token(token, db)
+        return payload
+    except HTTPException:
+        pass
+
+    # Fall back to ngrok token validation
+    if token == current_ngrok_token:
         return True
-    elif not current_ngrok_token:  # No token required in production mode
-        return True
-    else:
-        raise HTTPException(status_code=403, detail="Invalid or missing token")
+
+    raise HTTPException(status_code=403, detail="Invalid or missing token")
 
 # Users
 @app.get("/api/users")

@@ -2,17 +2,18 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBars, faTimes, faHome, faPlus, faTv, faSave } from '@fortawesome/free-solid-svg-icons'
+import { faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from './stores/user.js'
-import { useMusicPlayer } from './composables/useMusicPlayer.js'
+import { useMusicStore } from './stores/music.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
 
-library.add(faBars, faTimes, faHome, faPlus, faTv, faSave)
+library.add(faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft)
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const musicStore = useMusicStore()
 
 const {
   currentIndex,
@@ -20,7 +21,7 @@ const {
   togglePlay,
   init,
   restoreState
-} = useMusicPlayer()
+} = musicStore
 
 const navOpen = ref(false)
 const installPrompt = ref(null)

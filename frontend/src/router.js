@@ -35,7 +35,7 @@ router.beforeEach((to, from, next) => {
   const lastVisited = localStorage.getItem('lastVisited') || '/video'
 
   const hasBackend = backendUrl.trim().length > 0
-  const hasUser = !!user
+  const hasUser = !!user && typeof user === 'object' && 'id' in user
 
   // Save current route as last visited (for non-setup, non-home routes)
   if (!to.meta.isSetup && to.name !== 'home') {

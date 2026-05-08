@@ -7,6 +7,8 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      srcDir: 'src',
+      filename: 'sw.js',
       manifest: {
         name: 'HomeTube',
         short_name: 'HomeTube',

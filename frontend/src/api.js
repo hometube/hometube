@@ -1,39 +1,78 @@
 const BASE = import.meta.env.VITE_API_BASE || '/api'
+const BASE_HEADERS = { 'ngrok-skip-browser-warning': 'true' }
 
-function getToken() {
+function getJWT() {
+  return localStorage.getItem('jwt_token') || ''
+}
+
+function getQueryToken() {
   const url = localStorage.getItem('backendUrl') || ''
   const params = new URLSearchParams(url.split('?')[1] || '')
   return params.get('token') || ''
 }
 
-function buildUrl(path, query = {}) {
-  const baseUrl = localStorage.getItem('backendUrl') || ''
-  const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : `${BASE}${path}`
-  const params = new URLSearchParams()
-  Object.entries(query).forEach((entry) => {
-    const [key, val] = entry
-    if (val !== undefined && val !== null && val !== '') {
-      params.append(key, val)
-    }
+function sendJWTToSW(token) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SET_JWT',
+      token: token
+    })
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    sendJWTToSW(getJWT())
   })
-  const qs = params.toString()
-  return qs ? `${url}?${qs}` : url
+  if (navigator.serviceWorker.controller) {
+    sendJWTToSW(getJWT())
+  }
+}
+
+function buildUrl(path, query = {}) {
+  const backendUrl = localStorage.getItem('backendUrl') || ''
+  if (backendUrl) {
+    const urlObj = new URL(backendUrl)
+    const basePath = urlObj.pathname.endsWith('/') ? urlObj.pathname.slice(0, -1) : urlObj.pathname
+    const newPath = path.startsWith('/') ? path : `/${path}`
+    urlObj.pathname = `${basePath}${newPath}`
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        urlObj.searchParams.append(key, val)
+      }
+    })
+    return urlObj.toString()
+  } else {
+    const url = `${BASE}${path}`
+    const params = new URLSearchParams()
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        params.append(key, val)
+      }
+    })
+    const qs = params.toString()
+    return qs ? `${url}?${qs}` : url
+  }
 }
 
 export const API = {
   async get(path, query = {}) {
-    const token = getToken()
-    const headers = {}
-    if (token) headers['Authorization'] = `Bearer ${token}`
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
     const res = await fetch(buildUrl(path, query), { headers })
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
     return res.json()
   },
 
   async post(path, body = {}) {
-    const token = getToken()
-    const headers = { 'Content-Type': 'application/json' }
-    if (token) headers['Authorization'] = `Bearer ${token}`
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS, 'Content-Type': 'application/json' }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
     const res = await fetch(buildUrl(path), {
       method: 'POST',
       headers,
@@ -44,15 +83,29 @@ export const API = {
   },
 
   async delete(path) {
-    const token = getToken()
-    const headers = {}
-    if (token) headers['Authorization'] = `Bearer ${token}`
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
     const res = await fetch(buildUrl(path), {
       method: 'DELETE',
       headers
     })
     if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
     return res.json()
+  },
+
+  async exchangeToken(tempToken) {
+    const res = await fetch(buildUrl('/auth/exchange'), {
+      method: 'POST',
+      headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: tempToken })
+    })
+    if (!res.ok) throw new Error('Token exchange failed')
+    const data = await res.json()
+    localStorage.setItem('jwt_token', data.token)
+    return data.token
   },
 
   downloadFile(url, filename) {

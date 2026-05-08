@@ -25,12 +25,14 @@ export const useVideoStore = defineStore('video', () => {
   })
 
   const load = async () => {
+    console.log('Loading videos...')
     const userStore = useUserStore()
-    if (!userStore.user?.id) return
+    if (!userStore.user?.id) return console.warn('No user ID found, cannot load videos.')
     const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
     try {
       const data = await API.get('/videos', { user_id: userStore.user.id, filter })
       videos.value = Array.isArray(data) ? data : []
+      console.log('Loaded videos:', videos.value)
     } catch (e) {
       console.error('Failed to load videos:', e)
       videos.value = []

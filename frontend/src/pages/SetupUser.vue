@@ -60,12 +60,14 @@
 import { ref, onMounted } from 'vue'
 import { API } from '../api.js'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user.js'
 
 const username = ref('')
 const users = ref([])
 const backendUrlError = ref('')
 const userCreated = ref(false)
 const router = useRouter()
+const userStore = useUserStore()
 
 const loadUsers = async () => {
   try {
@@ -83,8 +85,7 @@ const saveUser = async () => {
   
   try {
     const user = await API.post('/users', { username: username.value.trim() })
-    // Store user in localStorage
-    localStorage.setItem('user', JSON.stringify(user))
+    userStore.setUser(user)
     userCreated.value = true
     
     // Wait a moment then redirect to home
@@ -98,7 +99,7 @@ const saveUser = async () => {
 }
 
 const selectExisting = (user) => {
-  localStorage.setItem('user', JSON.stringify(user))
+  userStore.setUser(user)
   router.push('/')
 }
 

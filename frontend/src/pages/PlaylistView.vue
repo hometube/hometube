@@ -4,10 +4,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '../stores/user.js'
+import { useMusicStore } from '../stores/music.js'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const musicStore = useMusicStore()
 
 const {
   playlist,
@@ -32,7 +34,7 @@ const {
   formatTime,
   cleanTitle,
   stop
-} = useMusicPlayer()
+} = musicStore
 
 const getPlaylistId = () => {
   const { id } = route.params

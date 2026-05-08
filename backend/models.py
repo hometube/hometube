@@ -77,3 +77,9 @@ class Download(Base):
     progress = Column(Integer, default=0)
     file_path = Column(String(500))
     created_at = Column(DateTime, server_default=func.now())
+
+class Setting(Base):
+    __tablename__ = "settings"
+    key = Column(String(100), primary_key=True)
+    value = Column(Text)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -4,13 +4,14 @@ import { useRouter, useRoute } from 'vue-router'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faEye, faBackward, faPlay, faPause, faForward, faRedo } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { useMusicPlayer } from '../composables/useMusicPlayer.js'
+import { useMusicStore } from '../stores/music.js'
 import WaveformVisual from './WaveformVisual.vue'
 
 library.add(faEye, faBackward, faPlay, faPause, faForward, faRedo)
 
 const router = useRouter()
 const route = useRoute()
+const musicStore = useMusicStore()
 
 const {
   audio,
@@ -26,7 +27,7 @@ const {
   isCurrentPlaylist,
   cleanTitle,
   currentTime
-} = useMusicPlayer()
+} = musicStore
 
 const onPlaylistPage = computed(() => {
   if (!route.path.startsWith('/music/playlist/')) return false
