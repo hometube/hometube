@@ -11,6 +11,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 import sys
+import urllib.parse
 import jwt
 from datetime import datetime, timedelta
 
@@ -153,15 +154,30 @@ async def lifespan(app: FastAPI):
             global current_ngrok_url
             current_ngrok_url = http_tunnel.public_url
 
+            backend_param = f"{current_ngrok_url}/api?token={current_ngrok_token}"
+            setup_url = f"https://hometube.github.io/setup?backend={urllib.parse.quote(backend_param, safe='')}"
+
             print("\n" + "="*60)
             print("🚀 HomeTube Development Server Ready!")
             print("="*60)
             print(f"Local API:     http://localhost:{port}")
             print(f"Public URL:    {current_ngrok_url}")
-            print(f"For github.io: {current_ngrok_url}/api?token={current_ngrok_token}")
+            print()
+            print("📱 Open this URL to connect from anywhere:")
+            print(f"   {setup_url}")
+            print()
+
+            try:
+                import qrcode
+                qr = qrcode.QRCode(border=1)
+                qr.add_data(setup_url)
+                qr.print_ascii(invert=True)
+            except ImportError:
+                print("   (install 'qrcode' package for a QR code)")
+
             print("="*60)
-            print("Share the 'For github.io' URL with your frontend to enable")
-            print("secure access to your local backend via GitHub Pages.")
+            print("Share the link above on any device to connect to")
+            print("your HomeTube backend via GitHub Pages.")
             print("="*60 + "\n")
         except ImportError:
             print("⚠️  pyngrok not installed. Install with: pip install pyngrok")
@@ -169,6 +185,21 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️  Failed to start ngrok tunnel: {e}")
             print("   Running in local-only mode.")
+
+    else:
+        # Local-only mode: still print the setup URL
+        port = int(os.environ.get("PORT", 8000))
+        setup_url = f"https://hometube.github.io/setup?backend={urllib.parse.quote(f'http://localhost:{port}/api', safe='')}"
+
+        print("\n" + "="*60)
+        print("🚀 HomeTube Server Ready!")
+        print("="*60)
+        print(f"Local API:     http://localhost:{port}")
+        print()
+        print("📱 Local setup URL:")
+        print(f"   {setup_url}")
+        print()
+        print("="*60 + "\n")
 
     yield
 

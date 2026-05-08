@@ -52,15 +52,23 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { API } from '../api.js'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const backendUrl = ref('')
 const backendUrlError = ref('')
 const backendSuccess = ref(false)
 const tokenExchange = ref(false)
 const router = useRouter()
+const route = useRoute()
+
+onMounted(async () => {
+  if (route.query.backend) {
+    backendUrl.value = route.query.backend
+    await testConnection()
+  }
+})
 
 const saveBackendUrl = () => {
   if (!backendUrl.value.trim()) {
