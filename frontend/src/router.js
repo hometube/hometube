@@ -12,10 +12,9 @@ import SetupUser from './pages/SetupUser.vue'
 import { API } from './api.js'
 
 const routes = [
-  { path: '/', redirect: '/setup' },
+  { path: '/', name: 'home', component: AboutPage },
   { path: '/setup', name: 'setup-backend', component: SetupBackend },
   { path: '/setup/user', name: 'setup-user', component: SetupUser },
-  { path: '/about', name: 'about', component: AboutPage },
   { path: '/user', name: 'user', component: UserPage },
   { path: '/video', name: 'video', component: VideoHome },
   { path: '/video/add', name: 'video-add', component: AddVideo },
@@ -25,6 +24,8 @@ const routes = [
   { path: '/music/playlist/:id', name: 'playlist', component: PlaylistView, props: true }
 ]
 
+const setupRoutes = ['setup-backend', 'setup-user', 'user']
+
 const router = createRouter({
   history: createWebHistory(),
   routes
@@ -33,25 +34,35 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   const backendUrl = localStorage.getItem('backendUrl') || ''
-  
-  // Define routes that require authentication
-  const authRequiredRoutes = ['video', 'video-add', 'video-channel', 'music', 'music-add', 'playlist']
-  const isAuthRequired = authRequiredRoutes.includes(to.name)
-  
-  // If no backend URL configured, redirect to setup backend
-  if (!backendUrl.trim() && !['setup-backend', 'about'].includes(to.name)) {
-    next('/setup')
-  } 
-  // If backend URL configured but no user, and trying to access auth-required routes, redirect to setup user
-  else if (backendUrl.trim() && !user && isAuthRequired) {
-    next('/setup/user')
-  } 
-  // If both configured and trying to access setup pages, redirect to home
-  else if (backendUrl.trim() && user && ['setup-backend', 'setup-user'].includes(to.name)) {
-    next('/')
-  } else {
+
+  const hasBackend = backendUrl.trim().length > 0
+  const hasUser = !!user
+
+  if (to.name === 'home') {
     next()
+    return
   }
+
+  if (setupRoutes.includes(to.name)) {
+    if (hasBackend && hasUser) {
+      next('/')
+      return
+    }
+    next()
+    return
+  }
+
+  if (!hasBackend) {
+    next('/setup')
+    return
+  }
+
+  if (!hasUser) {
+    next('/setup/user')
+    return
+  }
+
+  next()
 })
 
 export default router
