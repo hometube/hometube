@@ -123,8 +123,8 @@ export const API = {
 
   async pingServer() {
     try {
-      const res = await API.get(`/status`)
-      return res.ok
+      await API.get(`/status`)
+      return true
     } catch {
       return false
     }

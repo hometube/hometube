@@ -231,22 +231,37 @@ async def force_cors(request, call_next):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning"
     return response
 
-# Status endpoint - check backend connectivity (uses only ngrok token)
+# Status endpoint - check backend connectivity (accepts JWT or ngrok token)
 @app.get("/api/status")
 def status(request: Request, db: Session = Depends(get_db)):
     global current_ngrok_token
 
-    # Check for ngrok token in query params or Authorization header
+    # If no ngrok token is set (production mode), always allow
+    if not current_ngrok_token:
+        return {"status": "ok", "version": "1.0"}
+
+    # Get token from query params or Authorization header
     token = request.query_params.get('token', '')
     if not token and request.headers.get('authorization'):
         auth = request.headers.get('authorization')
         if auth.startswith('Bearer '):
             token = auth[7:]
 
-    if current_ngrok_token and token != current_ngrok_token:
-        raise HTTPException(status_code=403, detail="Invalid token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
 
-    return {"status": "ok", "version": "1.0"}
+    # Try JWT validation first
+    try:
+        verify_jwt_token(token, db)
+        return {"status": "ok", "version": "1.0"}
+    except HTTPException:
+        pass
+
+    # Fall back to ngrok token validation
+    if token == current_ngrok_token:
+        return {"status": "ok", "version": "1.0"}
+
+    raise HTTPException(status_code=403, detail="Invalid token")
 
 # Token exchange endpoint - use temporary ngrok token to get a long-lived JWT
 @app.post("/api/auth/exchange")
