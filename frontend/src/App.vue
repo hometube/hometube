@@ -26,14 +26,13 @@ const navOpen = ref(false)
 const installPrompt = ref(null)
 const showInstall = ref(false)
 
-const hideNavbar = computed(() => route.path === '/about')
-
 const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'
   if (route.path.startsWith('/music')) return 'music'
-  return 'user'
+  return 'setup'
 })
 const modeLabel = computed(() => mode.value === 'video' ? 'Video' : 'Music')
+const hideNavbar = computed(() => mode !== 'setup')
 
 const setUser = (user) => {
   currentUser.value = user

@@ -34,16 +34,20 @@ router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   const backendUrl = localStorage.getItem('backendUrl') || ''
   
+  // Define routes that require authentication
+  const authRequiredRoutes = ['video', 'video-add', 'video-channel', 'music', 'music-add', 'playlist']
+  const isAuthRequired = authRequiredRoutes.includes(to.name)
+  
   // If no backend URL configured, redirect to setup backend
-  if (!backendUrl.trim() && to.name !== 'setup-backend' && to.name !== 'about') {
+  if (!backendUrl.trim() && !['setup-backend', 'about'].includes(to.name)) {
     next('/setup')
   } 
-  // If backend URL configured but no user, redirect to setup user
-  else if (backendUrl.trim() && !user && to.name !== 'setup-user' && to.name !== 'setup-backend' && to.name !== 'about') {
+  // If backend URL configured but no user, and trying to access auth-required routes, redirect to setup user
+  else if (backendUrl.trim() && !user && isAuthRequired) {
     next('/setup/user')
   } 
-  // If both configured, allow access to all routes except setup pages
-  else if (backendUrl.trim() && user && (to.name === 'setup-backend' || to.name === 'setup-user')) {
+  // If both configured and trying to access setup pages, redirect to home
+  else if (backendUrl.trim() && user && ['setup-backend', 'setup-user'].includes(to.name)) {
     next('/')
   } else {
     next()
