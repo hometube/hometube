@@ -58,8 +58,9 @@ if ('serviceWorker' in navigator) {
 function buildUrl(path, query = {}) {
   const swActive = 'serviceWorker' in navigator && navigator.serviceWorker.controller
   const storedUrl = localStorage.getItem('backendUrl')
+  const hasJwt = !!getJWT()
 
-  if (!swActive && storedUrl) {
+  if (storedUrl && (!swActive || !hasJwt)) {
     const baseUrl = storedUrl.split('?')[0]
     const params = new URLSearchParams()
     Object.entries(query).forEach(([key, val]) => {
