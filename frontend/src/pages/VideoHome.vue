@@ -24,11 +24,17 @@ const filters = [
 ]
 
 const load = async () => {
-  if (!userStore.user) return
-  const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
-  const data = await API.get('/videos', { user_id: userStore.user.id, filter })
-  videos.value = data
-  applyFilter()
+  if (!userStore.user?.id) return
+  const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value;
+  try {
+    const data = await API.get('/videos', { user_id: userStore.user.id, filter });
+    videos.value = Array.isArray(data) ? data : [];
+    applyFilter();
+  } catch (e) {
+    console.error('Failed to load videos:', e);
+    videos.value = [];
+    filteredVideos.value = [];
+  }
 }
 
 const applyFilter = () => {
@@ -79,7 +85,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="userStore.user">
+  <div class="p-4 pt-16">
     <div class="flex gap-2 mb-4 overflow-x-auto">
       <button v-for="f in filters" :key="f.id" @click="setFilter(f.id)"
         :class="['px-3 py-1 rounded-full text-sm whitespace-nowrap', currentFilter === f.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300']">
@@ -102,7 +108,10 @@ onMounted(load)
       </div>
     </div>
 
-    <div class="space-y-2">
+    <div v-if="filteredVideos.length === 0" class="text-center py-8 text-gray-500">
+      No videos found. Go to Add Video to get started!
+    </div>
+    <div v-else class="space-y-2">
       <div v-for="v in filteredVideos" :key="v.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 flex items-center justify-between">
         <div class="flex-1 cursor-pointer" @click="playVideo(v)">
           <div class="text-sm font-medium">{{ v.title }}</div>

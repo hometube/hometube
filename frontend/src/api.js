@@ -1,87 +1,64 @@
-const API = {
-  getBaseUrlAndToken() {
-    const backendUrl = localStorage.getItem('backendUrl') || '/api'
-    
-    // If it's a full URL, check for token parameter
-    if (backendUrl.startsWith('http')) {
-      try {
-        const url = new URL(backendUrl)
-        const token = url.searchParams.get('token')
-        
-        // Remove token parameter from URL for actual requests
-        url.searchParams.delete('token')
-        const cleanUrl = url.toString()
-        
-        return { baseUrl: cleanUrl, token }
-      } catch (e) {
-        // If URL parsing fails, return as-is
-        return { baseUrl: backendUrl, token: null }
-      }
+const BASE = import.meta.env.VITE_API_BASE || '/api'
+
+function getToken() {
+  const url = localStorage.getItem('backendUrl') || ''
+  const params = new URLSearchParams(url.split('?')[1] || '')
+  return params.get('token') || ''
+}
+
+function buildUrl(path, query = {}) {
+  const baseUrl = localStorage.getItem('backendUrl') || ''
+  const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : `${BASE}${path}`
+  const params = new URLSearchParams()
+  Object.entries(query).forEach((entry) => {
+    const [key, val] = entry
+    if (val !== undefined && val !== null && val !== '') {
+      params.append(key, val)
     }
-    
-    // For relative URLs (/api), no token
-    return { baseUrl: backendUrl, token: null }
-  },
-  
-  async get(path, params = {}) {
-    const { baseUrl, token } = this.getBaseUrlAndToken()
-    const q = new URLSearchParams(params).toString()
-    
-    const headers = {
-      'ngrok-skip-browser-warning': 'true'
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    
-    const res = await fetch(`${baseUrl}${path}?${q}`, { headers })
+  })
+  const qs = params.toString()
+  return qs ? `${url}?${qs}` : url
+}
+
+export const API = {
+  async get(path, query = {}) {
+    const token = getToken()
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(buildUrl(path, query), { headers })
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
     return res.json()
   },
-  
+
   async post(path, body = {}) {
-    const { baseUrl, token } = this.getBaseUrlAndToken()
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    
-    const res = await fetch(`${baseUrl}${path}`, {
+    const token = getToken()
+    const headers = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(buildUrl(path), {
       method: 'POST',
       headers,
       body: JSON.stringify(body)
     })
+    if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`)
     return res.json()
   },
-  
+
   async delete(path) {
-    const { baseUrl, token } = this.getBaseUrlAndToken()
-    
-    const headers = {
-      'ngrok-skip-browser-warning': 'true'
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    
-    const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE', headers })
+    const token = getToken()
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(buildUrl(path), {
+      method: 'DELETE',
+      headers
+    })
+    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
     return res.json()
   },
-  
-  async downloadFile(url, filename) {
-    const headers = {
-      'ngrok-skip-browser-warning': 'true'
-    }
-    const response = await fetch(url, { headers })
-    const blob = await response.blob()
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(link.href)
+
+  downloadFile(url, filename) {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
   }
 }
-export { API }

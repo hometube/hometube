@@ -128,9 +128,10 @@ app.add_middleware(
     allow_origins=[
         "https://hometube.github.io",
         "http://localhost:8080",  # For local development
-        "http://127.0.0.1:8080", # For local development
+        "http://127.0.0.1:8080",  # For local development
         "http://localhost:5173",  # Vite dev server
-        "http://127.0.0.1:5173", # Vite dev server
+        "http://127.0.0.1:5173",  # Vite dev server
+        "*",  # Allow all origins for ngrok
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -32,7 +32,7 @@ const mode = computed(() => {
   return 'setup'
 })
 const modeLabel = computed(() => mode.value === 'video' ? 'Video' : 'Music')
-const hideNavbar = computed(() => mode !== 'setup')
+const hideNavbar = computed(() => mode.value === 'setup')
 
 const navigate = (tab, subPage = null) => {
   navOpen.value = false
