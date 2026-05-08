@@ -121,6 +121,15 @@ export const API = {
     return data.token
   },
 
+  async pingServer() {
+    try {
+      const res = await API.get(`/status`)
+      return res.ok
+    } catch {
+      return false
+    }
+  },
+
   async downloadFile(url, filename) {
     console.log('[API] Downloading file:', url)
     const jwt = getJWT()
@@ -147,4 +156,8 @@ export const API = {
       console.error('[API] Download failed:', err)
     }
   }
+}
+
+export async function pingBackend() {
+  return API.pingServer()
 }

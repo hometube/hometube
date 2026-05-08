@@ -2,13 +2,14 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft, faCircle } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from './stores/user.js'
 import { useMusicStore } from './stores/music.js'
+import { pingBackend } from './api.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
 
-library.add(faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft)
+library.add(faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft, faCircle)
 
 const router = useRouter()
 const route = useRoute()
@@ -26,6 +27,14 @@ const {
 const navOpen = ref(false)
 const installPrompt = ref(null)
 const showInstall = ref(false)
+const backendOnline = ref(false)
+const backendChecked = ref(false)
+let pingInterval = null
+
+const checkConnection = async () => {
+  backendOnline.value = await pingBackend()
+  backendChecked.value = true
+}
 
 const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'
@@ -70,10 +79,13 @@ onMounted(async () => {
   if (window.matchMedia('(display-mode: standalone)').matches) showInstall.value = false
   init()
   await restoreState()
+  checkConnection()
+  pingInterval = setInterval(checkConnection, 30000)
 })
 
 onUnmounted(() => {
   window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  if (pingInterval) clearInterval(pingInterval)
 })
 </script>
 
@@ -85,6 +97,11 @@ onUnmounted(() => {
         <FontAwesomeIcon :icon="['fas', 'bars']" />
       </button>
       <span class="text-lg font-bold">{{ modeLabel }}</span>
+      <div class="ml-auto flex items-center text-xs">
+        <FontAwesomeIcon v-if="backendChecked" :icon="['fas', 'circle']" :class="backendOnline ? 'text-green-500' : 'text-red-500'" class="mr-1" />
+        <span v-if="backendChecked" :class="backendOnline ? 'text-green-400' : 'text-red-400'">{{ backendOnline ? 'Online' : 'Offline' }}</span>
+        <span v-else class="text-gray-500">Checking...</span>
+      </div>
     </div>
 
     <!-- Left nav menu -->
