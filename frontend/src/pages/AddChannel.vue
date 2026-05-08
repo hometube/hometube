@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
 const router = useRouter()
+const userStore = useUserStore()
 
 const url = ref('')
 const mode = ref('select')
@@ -42,8 +43,8 @@ const downloadSelected = async () => {
   loading.value = true
   for (const vid of selectedVideos.value) {
     const vidUrl = vid.url || 'https://youtube.com/watch?v=' + vid.id
-    await API.post('/videos/add', { url: vidUrl, user_id: props.user.id, quality: quality.value })
-    const vids = await API.get('/videos', { user_id: props.user.id })
+    await API.post('/videos/add', { url: vidUrl, user_id: userStore.user.id, quality: quality.value })
+    const vids = await API.get('/videos', { user_id: userStore.user.id })
     const newVid = vids[0]
     if (newVid) await API.post('/videos/' + newVid.id + '/download', { quality: quality.value })
   }
@@ -58,13 +59,13 @@ const subscribe = async () => {
   if (subCriteria.value.min_length) criteria.min_length = parseInt(subCriteria.value.min_length)
   if (subCriteria.value.max_length) criteria.max_length = parseInt(subCriteria.value.max_length)
   criteria.quality = subCriteria.value.quality
-  await API.post('/channels/' + channelId.value + '/subscribe', { user_id: props.user.id, criteria: criteria })
+  await API.post('/channels/' + channelId.value + '/subscribe', { user_id: userStore.user.id, criteria: criteria })
   alert('Subscribed!')
 }
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="user">
+  <div class="p-4 pt-16" v-if="userStore.user">
     <button @click="router.push('/video')" class="text-gray-400 mb-4">
        <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
      </button>

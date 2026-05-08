@@ -2,14 +2,15 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { API } from '../api.js'
 import { useRoute } from 'vue-router'
+import { useUserStore } from '../stores/user.js'
 
-const emit = defineEmits(['select'])
+const userStore = useUserStore()
 const route = useRoute()
 const username = ref('')
 const users = ref([])
-const backendUrl = ref(localStorage.getItem('backendUrl') || '')
 const backendUrlError = ref('')
-const backendConfigured = computed(() => !!backendUrl.value.trim())
+
+const backendConfigured = computed(() => userStore.hasBackend)
 
 const isGitHubPages = computed(() => {
   return location.hostname.endsWith('github.io')
@@ -29,7 +30,6 @@ const loadUsers = async () => {
     users.value = await API.get('/users')
     backendUrlError.value = ''
   } catch (error) {
-    // Handle connection errors gracefully
     console.error('Failed to load users:', error)
     users.value = []
     backendUrlError.value = 'Failed to connect to backend. Please check the URL.'
@@ -46,7 +46,7 @@ const saveUser = async () => {
   
   try {
     const user = await API.post('/users', { username: username.value.trim() })
-    emit('select', user)
+    userStore.setUser(user)
     backendUrlError.value = ''
   } catch (error) {
     console.error('Failed to create user:', error)
@@ -60,21 +60,21 @@ const selectExisting = (user) => {
     return
   }
   
-  emit('select', user)
+  userStore.setUser(user)
   backendUrlError.value = ''
 }
 
 const saveBackendUrl = () => {
-  if (!backendUrl.value.trim()) {
-    localStorage.removeItem('backendUrl')
+  if (!userStore.backendUrl.trim()) {
+    userStore.setBackendUrl('')
   } else {
-    localStorage.setItem('backendUrl', backendUrl.value.trim())
+    userStore.setBackendUrl(userStore.backendUrl)
   }
   backendUrlError.value = ''
   loadUsers()
 }
 
-watch(backendUrl, () => {
+watch(() => userStore.backendUrl, () => {
   saveBackendUrl()
 })
 
@@ -109,7 +109,7 @@ onMounted(loadUsers)
     </div>
     
     <!-- Backend Configuration Alert -->
-    <div v-if="!backendConfigured.value && isGitHubPages.value" class="bg-red-900 text-red-200 p-4 mb-6 rounded-lg">
+    <div v-if="!backendConfigured && isGitHubPages" class="bg-red-900 text-red-200 p-4 mb-6 rounded-lg">
       <div class="flex items-start space-x-4">
         <div class="flex-shrink-0">
           <FontAwesomeIcon :icon="['fas', 'exclamation-triangle']" class="text-xl mt-0.5" />
@@ -132,27 +132,27 @@ onMounted(loadUsers)
     <div class="flex justify-between items-center">
       <input v-model="username" 
              placeholder="Enter username" 
-             :disabled="!backendConfigured.value"
+             :disabled="!backendConfigured"
              class="flex-1 p-3 mb-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-not-allowed" />
       <button @click="saveUser" 
-              :disabled="!backendConfigured.value || !username.value.trim()"
+              :disabled="!backendConfigured || !username.trim()"
               class="p-3 bg-gray-700 rounded-lg text-white mb-4 cursor-not-allowed"
-              :class="{ 'opacity-50': !backendConfigured.value || !username.value.trim() }">
+              :class="{ 'opacity-50': !backendConfigured || !username.trim() }">
         Create
       </button>
     </div>
 
     <h3 class="text-lg mb-2">Existing Users</h3>
-    <div v-if="users.length === 0 && backendConfigured.value" class="text-center py-8">
+    <div v-if="users.length === 0 && backendConfigured" class="text-center py-8">
       <p class="text-gray-500">No users found. Create a user above to get started.</p>
     </div>
     <div v-else-if="users.length > 0">
       <div v-for="u in users" :key="u.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 flex justify-between items-center">
         <span>{{ u.username }}</span>
         <button @click="selectExisting(u)" 
-                :disabled="!backendConfigured.value"
+                :disabled="!backendConfigured"
                 class="px-3 py-1 bg-gray-600 rounded text-sm cursor-not-allowed"
-                :class="{ 'opacity-50': !backendConfigured.value }">
+                :class="{ 'opacity-50': !backendConfigured }">
           Select
         </button>
       </div>
@@ -162,7 +162,7 @@ onMounted(loadUsers)
     <div class="mb-6">
       <label class="block text-sm font-medium text-white mb-2">Backend URL</label>
       <div class="flex items-center space-x-2">
-        <input v-model="backendUrl" 
+        <input v-model="userStore.backendUrl" 
                placeholder="e.g., https://abc123.ngrok.io/api?token=your-secret-code" 
                class="flex-1 p-2 bg-gray-900 border border-gray-600 rounded-lg text-white" />
         <button @click="saveBackendUrl" class="p-2 bg-gray-700 rounded text-white">

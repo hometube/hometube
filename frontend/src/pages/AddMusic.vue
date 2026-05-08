@@ -3,9 +3,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
 const router = useRouter()
+const userStore = useUserStore()
 
 const url = ref('')
 const newPlaylistName = ref('')
@@ -15,24 +16,19 @@ const info = ref(null)
 const loading = ref(false)
 
 const loadPlaylists = async () => {
-  if (!props.user) return
-  playlists.value = await API.get('/playlists', { user_id: props.user.id })
+  if (!userStore.user) return
+  playlists.value = await API.get('/playlists', { user_id: userStore.user.id })
 }
 
-const fetchInfo = async () => {
-  if (!url.value) return
-  info.value = await API.get('/music/info', { url: url.value })
-}
-
-const add = async () => {
-  if (!url.value || !props.user) return
+const addMusic = async () => {
+  if (!url.value || !userStore.user) return
   loading.value = true
   let playlistId = selectedPlaylistId.value
   if (newPlaylistName.value) {
-    const pl = await API.post('/playlists', { name: newPlaylistName.value, user_id: props.user.id })
+    const pl = await API.post('/playlists', { name: newPlaylistName.value, user_id: userStore.user.id })
     playlistId = pl.id
   }
-  const music = await API.post('/music/add', { url: url.value, user_id: props.user.id, playlist_id: playlistId })
+  const music = await API.post('/music/add', { url: url.value, user_id: userStore.user.id, playlist_id: playlistId })
   if (!music.downloaded) {
     const downloadResult = await API.post(`/music/${music.id}/download`, {})
     if (confirm('Download complete! Save to device?')) {
@@ -49,7 +45,7 @@ onMounted(loadPlaylists)
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="user">
+  <div class="p-4 pt-16" v-if="userStore.user">
     <button @click="router.push('/music')" class="text-gray-400 mb-4">
        <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
      </button>

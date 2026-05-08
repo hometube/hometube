@@ -4,8 +4,9 @@ import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
+const userStore = useUserStore()
 
 const videos = ref([])
 const filteredVideos = ref([])
@@ -23,16 +24,16 @@ const filters = [
 ]
 
 const load = async () => {
-  if (!props.user) return
+  if (!userStore.user) return
   const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
-  const data = await API.get('/videos', { user_id: props.user.id, filter })
+  const data = await API.get('/videos', { user_id: userStore.user.id, filter })
   videos.value = data
   applyFilter()
 }
 
 const applyFilter = () => {
   if (currentFilter.value === 'my-feed') {
-    filteredVideos.value = videos.value.filter(v => v.added_by === props.user.id)
+    filteredVideos.value = videos.value.filter(v => v.added_by === userStore.user.id)
   } else {
     filteredVideos.value = videos.value
   }
@@ -73,12 +74,12 @@ const toggleKeep = async (vid) => {
   load()
 }
 
-watch(() => props.user, load, { immediate: true })
+watch(() => userStore.user, load, { immediate: true })
 onMounted(load)
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="user">
+  <div class="p-4 pt-16" v-if="userStore.user">
     <div class="flex gap-2 mb-4 overflow-x-auto">
       <button v-for="f in filters" :key="f.id" @click="setFilter(f.id)"
         :class="['px-3 py-1 rounded-full text-sm whitespace-nowrap', currentFilter === f.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300']">

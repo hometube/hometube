@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
 const router = useRouter()
+const userStore = useUserStore()
 
 const url = ref('')
 const quality = ref('best')
@@ -24,10 +25,10 @@ const fetchFormats = async () => {
 }
 
 const add = async () => {
-  if (!url.value || !props.user) return
+  if (!url.value || !userStore.user) return
   loading.value = true
-  await API.post('/videos/add', { url: url.value, user_id: props.user.id, quality: quality.value })
-  const videos = await API.get('/videos', { user_id: props.user.id })
+  await API.post('/videos/add', { url: url.value, user_id: userStore.user.id, quality: quality.value })
+  const videos = await API.get('/videos', { user_id: userStore.user.id })
   const newVid = videos[0]
   if (newVid && !newVid.downloaded) {
     await API.post(`/videos/${newVid.id}/download`, { quality: quality.value })
@@ -41,7 +42,7 @@ const add = async () => {
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="user">
+  <div class="p-4 pt-16" v-if="userStore.user">
     <button @click="router.push('/video')" class="text-gray-400 mb-4">
        <FontAwesomeIcon :icon="['fas', 'arrow-left']" /> Back
      </button>

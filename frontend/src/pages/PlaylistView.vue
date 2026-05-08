@@ -1,13 +1,13 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { useMusicPlayer } from '../composables/useMusicPlayer.js'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 
 const {
   playlist,
@@ -41,25 +41,25 @@ const getPlaylistId = () => {
 
 const loadPlaylist = async () => {
   const { id } = route.params
-  if (!id || !props.user) return
+  if (!id || !userStore.user) return
 
   let pl = null
   let songs = []
 
   if (id === 'my-songs') {
-    const allSongs = await API.get('/music', { user_id: props.user.id })
+    const allSongs = await API.get('/music', { user_id: userStore.user.id })
     pl = { type: 'virtual', name: 'My Songs' }
-    songs = allSongs.filter(m => m.added_by === props.user.id)
+    songs = allSongs.filter(m => m.added_by === userStore.user.id)
   } else if (id === 'all-songs') {
-    const allSongs = await API.get('/music', { user_id: props.user.id })
+    const allSongs = await API.get('/music', { user_id: userStore.user.id })
     pl = { type: 'virtual', name: 'All Songs' }
     songs = allSongs
   } else {
-    const playlists = await API.get('/playlists', { user_id: props.user.id })
+    const playlists = await API.get('/playlists', { user_id: userStore.user.id })
     const found = playlists.find(p => p.id === parseInt(id))
     if (found) {
       pl = found
-      const allMusic = await API.get('/music', { user_id: props.user.id })
+      const allMusic = await API.get('/music', { user_id: userStore.user.id })
       songs = (found.songs || [])
         .map(s => allMusic.find(m => m.id === s.music_id))
         .filter(Boolean)

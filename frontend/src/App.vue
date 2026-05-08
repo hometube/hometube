@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faBars, faTimes, faHome, faPlus, faTv, faSave } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { API } from './api.js'
+import { useUserStore } from './stores/user.js'
 import { useMusicPlayer } from './composables/useMusicPlayer.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
 
@@ -12,6 +12,7 @@ library.add(faBars, faTimes, faHome, faPlus, faTv, faSave)
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 
 const {
   currentIndex,
@@ -21,7 +22,6 @@ const {
   restoreState
 } = useMusicPlayer()
 
-const currentUser = ref(JSON.parse(localStorage.getItem('user') || 'null'))
 const navOpen = ref(false)
 const installPrompt = ref(null)
 const showInstall = ref(false)
@@ -33,12 +33,6 @@ const mode = computed(() => {
 })
 const modeLabel = computed(() => mode.value === 'video' ? 'Video' : 'Music')
 const hideNavbar = computed(() => mode !== 'setup')
-
-const setUser = (user) => {
-  currentUser.value = user
-  localStorage.setItem('user', JSON.stringify(user))
-  router.push('/video')
-}
 
 const navigate = (tab, subPage = null) => {
   navOpen.value = false
@@ -140,7 +134,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <router-view :user="currentUser" @select="setUser" />
+    <router-view />
 
     <!-- Global Music Player -->
     <GlobalMusicPlayer />

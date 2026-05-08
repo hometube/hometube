@@ -1,67 +1,75 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useUserStore } from '../stores/user.js'
 
-const props = defineProps(['user'])
 const router = useRouter()
+const userStore = useUserStore()
 
 const playlists = ref([])
 const songs = ref([])
 
 const load = async () => {
-  if (!props.user) return
-  const [pls, allSongs] = await Promise.all([
-    API.get('/playlists', { user_id: props.user.id }),
-    API.get('/music', { user_id: props.user.id })
-  ])
-  playlists.value = pls
-  songs.value = allSongs
+  if (!userStore.user) return
+  try {
+    const [pls, allSongs] = await Promise.all([
+      API.get('/playlists', { user_id: userStore.user.id }),
+      API.get('/music', { user_id: userStore.user.id })
+    ])
+    playlists.value = pls
+    songs.value = allSongs
+  } catch (e) {
+    console.error('Failed to load music data:', e)
+  }
 }
 
-const mySongs = computed(() => songs.value.filter(m => m.added_by === props.user?.id))
+const mySongs = computed(() => songs.value.filter(m => m.added_by === userStore.user?.id))
 
-const selectPlaylist = (playlist) => {
-  router.push(`/music/playlist/${playlist.id}`)
-}
+const virtualPlaylists = computed(() => [
+  { id: 'my-songs', name: 'My Songs', songs: mySongs.value },
+  { id: 'all-songs', name: 'All Songs', songs: songs.value }
+])
 
-const selectMySongs = () => {
-  router.push('/music/playlist/my-songs')
-}
-
-const selectAllSongs = () => {
-  router.push('/music/playlist/all-songs')
-}
-
-watch(() => props.user, (user) => {
+watch(() => userStore.user, (user) => {
   if (user) load()
 }, { immediate: true })
+
 onMounted(load)
+
+const openPlaylist = (pl) => {
+  router.push(`/music/playlist/${pl.id}`)
+}
+
+const openVirtual = (vp) => {
+  router.push(`/music/playlist/${vp.id}`)
+}
 </script>
 
 <template>
-  <div class="p-4 pt-16" v-if="user">
+  <div class="p-4 pt-16">
     <div class="mb-4">
-      <h3 class="text-sm text-gray-400 uppercase mb-2">Playlists</h3>
-      <div @click="selectMySongs"
-        class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-700">
-        <div class="font-medium">My Songs</div>
-        <div class="text-xs text-gray-400">{{ mySongs.length }} songs</div>
+      <h2 class="text-xl font-bold mb-2">Playlists</h2>
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <div v-for="vp in virtualPlaylists" :key="vp.id" @click="openVirtual(vp)"
+          class="bg-gray-800 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-700">
+          <div class="font-medium">{{ vp.name }}</div>
+          <div class="text-xs text-gray-400">{{ vp.songs.length }} songs</div>
+        </div>
       </div>
-      <div @click="selectAllSongs"
-        class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-700">
-        <div class="font-medium">All Songs</div>
-        <div class="text-xs text-gray-400">{{ songs?.length || 0 }} songs</div>
+      <div v-if="playlists.length === 0" class="text-center py-8 text-gray-500">
+        No playlists yet. Add music to create one.
       </div>
-      <div v-for="pl in playlists" :key="pl.id" @click="selectPlaylist(pl)"
-        class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-700">
-        <div class="font-medium">{{ pl.name }}</div>
-        <div class="text-xs text-gray-400">{{ (pl.songs || []).length }} songs</div>
+      <div v-else class="space-y-2">
+        <div v-for="pl in playlists" :key="pl.id" @click="openPlaylist(pl)"
+          class="bg-gray-800 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-700">
+          <div class="font-medium">{{ pl.name }}</div>
+        </div>
       </div>
-      <button @click="router.push('/music/add')" class="w-full p-3 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm">
-        <FontAwesomeIcon :icon="['fas', 'plus']" /> New Playlist
-      </button>
     </div>
+    <button @click="router.push('/music/add')" class="w-full p-3 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm">
+      + Add Music
+    </button>
   </div>
 </template>
