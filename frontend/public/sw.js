@@ -38,8 +38,10 @@ self.addEventListener('fetch', (event) => {
       const modifiedHeaders = new Headers(event.request.headers)
       modifiedHeaders.set('Authorization', `Bearer ${jwtToken}`)
       modifiedHeaders.set('ngrok-skip-browser-warning', 'true')
-      const modifiedURL = new URL(event.request.url, backendUrl)
-      console.log('[SW] Modified URL:', modifiedURL, backendUrl)
+      const backendOrigin = new URL(backendUrl)
+      const modifiedURL = new URL(event.request.url)
+      modifiedURL.protocol = backendOrigin.protocol
+      modifiedURL.host = backendOrigin.host
       const modifiedRequest = new Request(modifiedURL, {
         headers: modifiedHeaders
       })
