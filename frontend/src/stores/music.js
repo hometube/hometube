@@ -20,6 +20,36 @@ export const useMusicStore = defineStore('music', () => {
   ServiceWorker.sendCacheRule('/api/music', { ttl: Infinity, refetch: true })
   ServiceWorker.sendCacheRule('/api/playlists', { ttl: Infinity, refetch: true })
 
+  const isOffline = computed(() => {
+    const userStore = useUserStore()
+    return userStore.checked && !userStore.online
+  })
+
+  const findNextIndex = (forward = true) => {
+    if (forward) {
+      const start = currentIndex.value + 1
+      for (let i = start; i < displaySongs.value.length; i++) {
+        if (!isOffline.value || displaySongs.value[i].downloaded) return i
+      }
+      if (repeat.value) {
+        for (let i = 0; i < currentIndex.value; i++) {
+          if (!isOffline.value || displaySongs.value[i].downloaded) return i
+        }
+      }
+    } else {
+      const start = currentIndex.value - 1
+      for (let i = start; i >= 0; i--) {
+        if (!isOffline.value || displaySongs.value[i].downloaded) return i
+      }
+      if (repeat.value) {
+        for (let i = displaySongs.value.length - 1; i > currentIndex.value; i--) {
+          if (!isOffline.value || displaySongs.value[i].downloaded) return i
+        }
+      }
+    }
+    return -1
+  }
+
   const hasActiveQueue = computed(() => displaySongs.value.length > 0)
 
   const isInQueue = (songId) => displaySongs.value.some(s => s.id === songId)
@@ -210,10 +240,9 @@ export const useMusicStore = defineStore('music', () => {
     window.addEventListener('beforeunload', saveState)
 
     audio.value.addEventListener('ended', () => {
-      if (currentIndex.value < displaySongs.value.length - 1) {
-        playSong(currentIndex.value + 1, false)
-      } else if (repeat.value) {
-        playSong(0, false)
+      const idx = findNextIndex(true)
+      if (idx >= 0) {
+        playSong(idx)
       } else {
         playing.value = false
         saveState()
@@ -313,11 +342,8 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   const next = () => {
-    if (currentIndex.value < displaySongs.value.length - 1) {
-      playSong(currentIndex.value + 1)
-    } else if (repeat.value) {
-      playSong(0)
-    }
+    const idx = findNextIndex(true)
+    if (idx >= 0) playSong(idx)
   }
 
   const prev = () => {
@@ -325,10 +351,8 @@ export const useMusicStore = defineStore('music', () => {
       audio.value.currentTime = 0
       return
     }
-    resumeIndex.value = -1
-    if (currentIndex.value > 0) {
-      playSong(currentIndex.value - 1)
-    }
+    const idx = findNextIndex(false)
+    if (idx >= 0) playSong(idx)
   }
 
   const toggleRepeat = () => { repeat.value = !repeat.value }
@@ -347,6 +371,13 @@ export const useMusicStore = defineStore('music', () => {
     }
   }
 
+  const findFirstPlayable = () => {
+    for (let i = 0; i < displaySongs.value.length; i++) {
+      if (!isOffline.value || displaySongs.value[i].downloaded) return i
+    }
+    return -1
+  }
+
   const playFirst = () => {
     if (shuffled.value) {
       shuffled.value = false
@@ -356,7 +387,8 @@ export const useMusicStore = defineStore('music', () => {
       displaySongs.value = [...originalOrder.value]
       currentIndex.value = 0
     }
-    if (displaySongs.value.length > 0) playSong(0)
+    const idx = findFirstPlayable()
+    if (idx >= 0) playSong(idx)
   }
 
   const shufflePlay = () => {
@@ -367,7 +399,8 @@ export const useMusicStore = defineStore('music', () => {
       }
       shuffleOrder()
     }
-    if (displaySongs.value.length > 0) playSong(0)
+    const idx = findFirstPlayable()
+    if (idx >= 0) playSong(idx)
   }
 
   const isCurrentPlaylist = (plId) => {
