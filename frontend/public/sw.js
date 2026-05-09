@@ -14,6 +14,14 @@ CacheRequest.onupgradeneeded = (event) => {
   if (!db.objectStoreNames.contains('requests')) {
     db.createObjectStore('requests', { keyPath: 'id' })
   }
+
+  setTimeout(() => {
+    readFromCache("!cache-rules").then((cachedRules) => {
+      if (cachedRules) {
+        Object.assign(cacheRules, cachedRules)
+      }
+    })
+  }, 100)
 }
 
 CacheRequest.onsuccess = (event) => {
@@ -84,6 +92,7 @@ self.addEventListener('message', (event) => {
   }
   if (event.data?.type === 'SET_CACHE_RULE') {
     cacheRules[event.data.path] = event.data.options
+    writeToCache("!cache-rules", cacheRules)
     console.log('[SW] Cache rules updated:', cacheRules)
   }
 })
@@ -109,7 +118,7 @@ self.addEventListener('fetch', (event) => {
             console.log('[SW] Cached response expired, attempting to fetch new one.')
           } else {
             console.log('[SW] Returning cached response:', cachedResponse)
-            return event.respondWith(new Response(cachedResponse.body, { headers: cachedResponse.headers }))
+            return resolve(new Response(cachedResponse.body, { headers: cachedResponse.headers }))
           }
         }
   
@@ -123,24 +132,25 @@ self.addEventListener('fetch', (event) => {
         modifiedURL.port = backendOrigin.port
         const modifiedRequest = new Request(modifiedURL, { headers: modifiedHeaders })
         
-        return fetch(modifiedRequest).then(async (response) => {
+        try {
+          const response = await fetch(modifiedRequest)
+
           if (response.ok && rule) {
             console.log('[SW] Caching response for:', url.pathname + url.search)
             writeToCache(url.pathname + url.search, response)
           }
 
-          response.url = url
-          return response
-        }).catch(err => {
-          console.error('[SW] Fetch failed:', err)
+          resolve(response)
+        } catch (error) {
+          console.error('[SW] Fetch failed:', error)
 
           if (cachedResponse) {
             console.log('[SW] Error, returning cached response')
-            return new Response(cachedResponse.body, { headers: cachedResponse.headers })
+            resolve(new Response(cachedResponse.body, { headers: cachedResponse.headers }))
+          } else {
+            reject(error)
           }
-
-          throw error
-        })
+        }
       }))
     }
   }

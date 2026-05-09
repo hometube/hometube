@@ -120,7 +120,7 @@ function buildUrl(path, query = {}) {
 }
 
 export const API = {
-  async get(path, query = {}) {
+  async get(path, query = {}, json = true) {
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -129,7 +129,10 @@ export const API = {
     else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
     const res = await fetch(buildUrl(path, query), { headers })
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
-    return res.json()
+    if (json) {
+      return res.json()
+    }
+    return res
   },
 
   async post(path, body = {}) {
@@ -186,11 +189,11 @@ export const API = {
     }
   },
 
-  async cache(path, options) {
+  async cache(path, options, json = true) {
     await swReady
-    sendCacheRule('/api' + path, options)
+    ServiceWorker.sendCacheRule('/api' + path, options)
     await new Promise(resolve => setTimeout(resolve, 100))
-    return API.get(path)
+    return API.get(path, {}, json)
   },
 
   async downloadFile(url, filename) {

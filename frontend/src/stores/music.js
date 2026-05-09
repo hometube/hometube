@@ -240,7 +240,7 @@ export const useMusicStore = defineStore('music', () => {
     if (audio.value) {
       if (reloadAudio) {
         currentTime.value = 0
-        audio.value.src = `/api/music/${displaySongs.value[index].id}/file?t=${Date.now()}`
+        audio.value.src = `/api/music/${displaySongs.value[index].id}/file`
         audio.value.load()
       }
       audio.value.play().catch(() => {})

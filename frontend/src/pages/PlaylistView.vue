@@ -119,7 +119,7 @@ const createNewPlaylist = async () => {
 
 const download = async () => {
   if (!menuSong.value) return
-  API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false })
+  API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false }, false)
   closeMenu()
 }
 
