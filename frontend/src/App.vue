@@ -40,6 +40,8 @@ const navigate = (tab, subPage = null) => {
     router.push(subPage === 'add' ? '/video/add' : subPage === 'channel' ? '/video/channel' : '/video')
   } else if (tab === 'music') {
     router.push(subPage === 'add' ? '/music/add' : '/music')
+  } else if (tab === 'settings') {
+    router.push('/settings')
   }
 }
 
@@ -140,10 +142,13 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div v-if="showInstall" class="mb-4">
+        <div class="mb-4">
           <div class="text-xs text-gray-500 uppercase mb-2">App</div>
-          <button @click="installApp" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+          <button v-if="showInstall" @click="installApp" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'save']" class="mr-2" /> Install App
+          </button>
+          <button @click="navigate('settings')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+            <FontAwesomeIcon :icon="['fas', 'cog']" class="mr-2" /> Settings
           </button>
         </div>
       </div>

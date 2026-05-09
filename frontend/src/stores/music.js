@@ -288,6 +288,18 @@ export const useMusicStore = defineStore('music', () => {
       }
       audio.value.play().catch(() => {})
     }
+
+    if (!song.downloaded) {
+      try {
+        const s = JSON.parse(localStorage.getItem('settings') || '{}')
+        if (s.downloadOnPlay !== false) {
+          API.cache(`/music/${song.id}/file`, { ttl: Infinity, refetch: false }, false)
+          const idx = displaySongs.value.findIndex(s => s.id === song.id)
+          if (idx >= 0) displaySongs.value[idx].downloaded = true
+          if (downloadedCache.value) downloadedCache.value[song.id] = true
+        }
+      } catch {}
+    }
   }
 
   const togglePlay = () => {
