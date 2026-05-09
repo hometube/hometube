@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { API } from '../api.js'
+import { API, ServiceWorker } from '../api.js'
 import { useUserStore } from './user.js'
 
 export const useMusicStore = defineStore('music', () => {
@@ -16,6 +16,32 @@ export const useMusicStore = defineStore('music', () => {
   const currentTime = ref(0)
   const duration = ref(0)
   const initialized = ref(false)
+
+  ServiceWorker.sendCacheRule('/api/music', { ttl: Infinity, refetch: true })
+  ServiceWorker.sendCacheRule('/api/playlists', { ttl: Infinity, refetch: true })
+
+  const hasActiveQueue = computed(() => displaySongs.value.length > 0)
+
+  const isInQueue = (songId) => displaySongs.value.some(s => s.id === songId)
+
+  const addToQueueNext = (song) => {
+    displaySongs.value.splice(currentIndex.value + 1, 0, { ...song })
+  }
+
+  const addToQueue = (song) => {
+    if (isInQueue(song.id)) return
+    displaySongs.value.push({ ...song })
+  }
+
+  const removeFromQueue = (songId) => {
+    displaySongs.value = displaySongs.value.filter(s => s.id !== songId)
+  }
+
+  const playNextQueued = () => {
+    if (displaySongs.value.length === 0) return
+    currentIndex.value++
+    playSong(currentIndex.value)
+  }
 
   // Music data
   const playlists = ref([])
@@ -242,7 +268,10 @@ export const useMusicStore = defineStore('music', () => {
   const prev = () => {
     if (audio.value && audio.value.currentTime > 3) {
       audio.value.currentTime = 0
-    } else if (currentIndex.value > 0) {
+      return
+    }
+    resumeIndex.value = -1
+    if (currentIndex.value > 0) {
       playSong(currentIndex.value - 1)
     }
   }
@@ -328,6 +357,11 @@ export const useMusicStore = defineStore('music', () => {
     songs,
     mySongs,
     virtualPlaylists,
+    hasActiveQueue,
+    isInQueue,
+    addToQueueNext,
+    addToQueue,
+    removeFromQueue,
     getAnalyser,
     saveState,
     restoreState,

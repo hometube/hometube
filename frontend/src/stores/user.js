@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { sendBackendUrlToSW } from '../api'
+import { ServiceWorker } from '../api'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
@@ -20,7 +20,7 @@ export const useUserStore = defineStore('user', () => {
       localStorage.removeItem('backendUrl')
     } else {
       localStorage.setItem('backendUrl', url.trim())
-      sendBackendUrlToSW()
+      ServiceWorker.sendBackendUrl(url.trim())
     }
   }
 

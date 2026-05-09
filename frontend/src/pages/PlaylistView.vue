@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import SongMenu from '../components/SongMenu.vue'
 import { useUserStore } from '../stores/user.js'
 import { useMusicStore } from '../stores/music.js'
 
@@ -23,6 +24,7 @@ const {
   currentTime,
   duration,
   currentSong,
+  hasActiveQueue,
 } = storeToRefs(musicStore)
 
 const {
@@ -37,8 +39,89 @@ const {
   isCurrentPlaylist,
   formatTime,
   cleanTitle,
-  stop
+  stop,
+  isInQueue,
+  addToQueueNext,
+  addToQueue,
+  removeFromQueue,
+  load,
 } = musicStore
+
+const showMenu = ref(false)
+const menuSong = ref(null)
+
+const openMenu = (song) => {
+  menuSong.value = song
+  showMenu.value = true
+}
+
+const closeMenu = () => {
+  showMenu.value = false
+  menuSong.value = null
+}
+
+const handlePlay = () => {
+  if (!menuSong.value) return
+  const idx = displaySongs.value.findIndex(s => s.id === menuSong.value.id)
+  if (idx >= 0) playSong(idx)
+  closeMenu()
+}
+
+const handlePlayNext = () => {
+  if (!menuSong.value) return
+  addToQueueNext(menuSong.value)
+  closeMenu()
+}
+
+const handleAddToQueue = () => {
+  if (!menuSong.value) return
+  addToQueue(menuSong.value)
+  closeMenu()
+}
+
+const handleRemoveFromQueue = () => {
+  if (!menuSong.value) return
+  removeFromQueue(menuSong.value.id)
+  closeMenu()
+}
+
+const handleRemoveFromPlaylist = async () => {
+  if (!menuSong.value || !playlist.value || playlist.value.type === 'virtual') return
+  await API.delete(`/playlists/${playlist.value.id}/remove/${menuSong.value.id}`)
+  loadPlaylist()
+  closeMenu()
+}
+
+const otherPlaylists = computed(() => {
+  const all = musicStore.playlists
+  if (!playlist.value || playlist.value.type === 'virtual') return all
+  return all.filter(p => p.id !== playlist.value.id)
+})
+
+const menuSongInQueue = computed(() => isInQueue(menuSong.value?.id))
+
+const handleAddToPlaylist = async (pl) => {
+  if (!menuSong.value) return
+  await API.post(`/playlists/${pl.id}/add`, { music_id: menuSong.value.id })
+  load()
+  closeMenu()
+}
+
+const createNewPlaylist = async () => {
+  if (!menuSong.value || !userStore.user) return
+  const name = prompt('Playlist name:')
+  if (!name) return
+  const pl = await API.post('/playlists', { name, user_id: userStore.user.id })
+  await API.post(`/playlists/${pl.id}/add`, { music_id: menuSong.value.id })
+  load()
+  closeMenu()
+}
+
+const download = async () => {
+  if (!menuSong.value) return
+  API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false })
+  closeMenu()
+}
 
 const loading = ref(true)
 const error = ref(null)
@@ -97,12 +180,6 @@ const loadPlaylist = async () => {
   }
 }
 
-const removeFromPlaylist = async (musicId) => {
-  if (!playlist.value || playlist.value.type === 'virtual') return
-  await API.delete(`/playlists/${playlist.value.id}/remove/${musicId}`)
-  loadPlaylist()
-}
-
 const close = () => {
   router.push('/music')
 }
@@ -140,17 +217,35 @@ watch(() => route.params.id, () => {
             class="flex items-center gap-3 p-3 rounded hover:bg-gray-800 cursor-pointer"
             :class="{ 'bg-gray-800': idx === currentIndex }"
             @click="playSong(idx)">
-            <img v-if="s.album_art" :src="s.album_art" class="w-10 h-10 rounded object-cover" />
             <div class="flex-1">
               <div class="text-sm">{{ cleanTitle(s.title) }}</div>
               <div class="text-xs text-gray-400">{{ s.artist }}</div>
             </div>
-            <button v-if="playlist && playlist.type !== 'virtual'" @click.stop="removeFromPlaylist(s.id)" class="text-gray-400">
+            <button @click.stop="openMenu(s)" class="text-gray-400 px-2">
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
             </button>
           </div>
         </div>
       </div>
     </div>
+
+    <SongMenu
+      v-if="showMenu"
+      :song="menuSong"
+      :playlist="playlist"
+      :has-active-queue="hasActiveQueue"
+      :in-queue="menuSongInQueue"
+      :other-playlists="otherPlaylists"
+      :clean-title="cleanTitle"
+      @close="closeMenu"
+      @play="handlePlay"
+      @play-next="handlePlayNext"
+      @add-to-queue="handleAddToQueue"
+      @remove-from-queue="handleRemoveFromQueue"
+      @remove-from-playlist="handleRemoveFromPlaylist"
+      @add-to-playlist="handleAddToPlaylist"
+      @create-new-playlist="createNewPlaylist"
+      @download="download"
+    />
   </div>
 </template>

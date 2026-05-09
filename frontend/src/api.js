@@ -11,49 +11,84 @@ function getQueryToken() {
   return params.get('token') || ''
 }
 
-function sendJWTToSW(token) {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    console.log('[API] Sending JWT to SW:', token ? 'present' : 'empty')
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SET_JWT',
-      token: token
-    })
-  } else {
-    console.log('[API] No SW controller available')
+export const ServiceWorker = {
+  ready: false,
+  async sendJWT(token) {
+    if (!ServiceWorker.ready) {
+      await swReady
+    }
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      console.log('[API] Sending JWT to SW:', token ? 'present' : 'empty')
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SET_JWT',
+        token: token
+      })
+    } else {
+      console.log('[API] No SW controller available')
+    }
+  },
+  async sendBackendUrl(url) {
+    if (!ServiceWorker.ready) {
+      await swReady
+    }
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      console.log('[API] Sending backend URL to SW:', url)
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SET_BACKEND_URL',
+        url: url
+      })
+    } else {
+      console.log('[API] No SW controller available')
+    }
+  },
+  async sendCacheRule(path, options) {
+    if (!ServiceWorker.ready) {
+      await swReady
+    }
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      console.log('[API] Sending cache rule to SW:', path, options)
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SET_CACHE_RULE',
+        path,
+        options
+      })
+    } else {
+      console.log('[API] No SW controller available')
+    }
   }
 }
 
-export function sendBackendUrlToSW(url) {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    console.log('[API] Sending backend URL to SW:', url)
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SET_BACKEND_URL',
-      url: url
-    })
+const swReady = new Promise(resolve => {
+  if (!('serviceWorker' in navigator)) {
+    resolve()
+    return
   }
-}
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('[API] SW controller changed')
-    sendJWTToSW(getJWT())
-    sendBackendUrlToSW(localStorage.getItem('backendUrl') || '')
-  })
   if (navigator.serviceWorker.controller) {
     console.log('[API] SW controller already active')
-    sendJWTToSW(getJWT())
-    sendBackendUrlToSW(localStorage.getItem('backendUrl') || '')
+    ServiceWorker.ready = true
+    ServiceWorker.sendJWT(getJWT())
+    ServiceWorker.sendBackendUrl(localStorage.getItem('backendUrl') || '')
+    setTimeout(resolve, 100)
   } else {
-    console.log('[API] No active SW controller on load')
+    console.log('[API] Waiting for SW controller...')
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[API] SW controller changed')
+      ServiceWorker.ready = true
+      ServiceWorker.sendJWT(getJWT())
+      ServiceWorker.sendBackendUrl(localStorage.getItem('backendUrl') || '')
+      setTimeout(resolve, 100)
+    })
   }
-  
   navigator.serviceWorker.getRegistrations().then(registrations => {
     console.log('[API] SW registrations:', registrations.length)
     registrations.forEach(reg => {
       console.log('[API] - SW scope:', reg.scope, 'active:', !!reg.active)
     })
   })
-}
+})
 
 function buildUrl(path, query = {}) {
   const swActive = 'serviceWorker' in navigator && navigator.serviceWorker.controller
@@ -80,11 +115,13 @@ function buildUrl(path, query = {}) {
     }
   })
   const qs = params.toString()
+  console.log('[API] url:', qs ? `${url}?${qs}` : url)
   return qs ? `${url}?${qs}` : url
 }
 
 export const API = {
   async get(path, query = {}) {
+    await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
     const headers = { ...BASE_HEADERS }
@@ -96,6 +133,7 @@ export const API = {
   },
 
   async post(path, body = {}) {
+    await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
     const headers = { ...BASE_HEADERS, 'Content-Type': 'application/json' }
@@ -111,6 +149,7 @@ export const API = {
   },
 
   async delete(path) {
+    await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
     const headers = { ...BASE_HEADERS }
@@ -139,6 +178,7 @@ export const API = {
 
   async pingServer() {
     try {
+      await swReady
       await API.get(`/status`)
       return true
     } catch {
@@ -146,7 +186,15 @@ export const API = {
     }
   },
 
+  async cache(path, options) {
+    await swReady
+    sendCacheRule('/api' + path, options)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    return API.get(path)
+  },
+
   async downloadFile(url, filename) {
+    await swReady
     console.log('[API] Downloading file:', url)
     const jwt = getJWT()
     const queryToken = getQueryToken()

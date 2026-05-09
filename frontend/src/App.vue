@@ -1,15 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft, faCircle } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from './stores/user.js'
 import { useMusicStore } from './stores/music.js'
 import { pingBackend } from './api.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
-
-library.add(faBars, faTimes, faHome, faPlus, faTv, faSave, faRandom, faArrowLeft, faCircle)
+import BackendMenu from './components/BackendMenu.vue'
+import './icons.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,6 +27,7 @@ const installPrompt = ref(null)
 const showInstall = ref(false)
 const backendOnline = ref(false)
 const backendChecked = ref(false)
+const backendMenu = ref(null)
 let pingInterval = null
 
 const checkConnection = async () => {
@@ -81,14 +80,14 @@ onMounted(async () => {
   await restoreState()
   if (userStore.hasUser) {
     checkConnection()
-    pingInterval = setInterval(checkConnection, 30000)
+    pingInterval = setInterval(checkConnection, 60000)
   }
 })
 
 watch(() => userStore.hasUser, (hasUser) => {
   if (hasUser && !pingInterval) {
     checkConnection()
-    pingInterval = setInterval(checkConnection, 30000)
+    pingInterval = setInterval(checkConnection, 60000)
   } else if (!hasUser && pingInterval) {
     clearInterval(pingInterval)
     pingInterval = null
@@ -111,11 +110,10 @@ onUnmounted(() => {
         <FontAwesomeIcon :icon="['fas', 'bars']" />
       </button>
       <span class="text-lg font-bold">{{ modeLabel }}</span>
-      <div class="ml-auto flex items-center text-xs">
+      <button class="ml-auto flex items-center text-xs" @click="backendMenu.open">
         <FontAwesomeIcon v-if="backendChecked" :icon="['fas', 'circle']" :class="backendOnline ? 'text-green-500' : 'text-red-500'" class="mr-1" />
-        <span v-if="backendChecked" :class="backendOnline ? 'text-green-400' : 'text-red-400'">{{ backendOnline ? 'Online' : 'Offline' }}</span>
         <span v-else class="text-gray-500">Checking...</span>
-      </div>
+      </button>
     </div>
 
     <!-- Left nav menu -->
@@ -170,5 +168,11 @@ onUnmounted(() => {
 
     <!-- Global Music Player -->
     <GlobalMusicPlayer />
+
+    <!-- Backend Configuration -->
+    <BackendMenu ref="backendMenu" />
+
+    <!-- Global Popover Portal -->
+    <div id="popover-portal" class="fixed z-[1000]"></div>
   </div>
 </template>
