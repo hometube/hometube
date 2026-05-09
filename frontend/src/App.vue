@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from './stores/user.js'
 import { useMusicStore } from './stores/music.js'
-import { pingBackend } from './api.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
 import BackendMenu from './components/BackendMenu.vue'
 import './icons.js'
@@ -25,15 +24,7 @@ const {
 const navOpen = ref(false)
 const installPrompt = ref(null)
 const showInstall = ref(false)
-const backendOnline = ref(false)
-const backendChecked = ref(false)
 const backendMenu = ref(null)
-let pingInterval = null
-
-const checkConnection = async () => {
-  backendOnline.value = await pingBackend()
-  backendChecked.value = true
-}
 
 const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'
@@ -79,26 +70,20 @@ onMounted(async () => {
   init()
   await restoreState()
   if (userStore.hasUser) {
-    checkConnection()
-    pingInterval = setInterval(checkConnection, 60000)
+    userStore.startPinging()
   }
 })
 
 watch(() => userStore.hasUser, (hasUser) => {
-  if (hasUser && !pingInterval) {
-    checkConnection()
-    pingInterval = setInterval(checkConnection, 60000)
-  } else if (!hasUser && pingInterval) {
-    clearInterval(pingInterval)
-    pingInterval = null
-    backendOnline.value = false
-    backendChecked.value = false
+  if (hasUser) {
+    userStore.startPinging()
+  } else {
+    userStore.stopPinging()
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-  if (pingInterval) clearInterval(pingInterval)
 })
 </script>
 
@@ -111,7 +96,7 @@ onUnmounted(() => {
       </button>
       <span class="text-lg font-bold">{{ modeLabel }}</span>
       <button class="ml-auto flex items-center text-xs" @click="backendMenu.open">
-        <FontAwesomeIcon v-if="backendChecked" :icon="['fas', 'circle']" :class="backendOnline ? 'text-green-500' : 'text-red-500'" class="mr-1" />
+        <FontAwesomeIcon v-if="userStore.checked" :icon="['fas', 'circle']" :class="userStore.online ? 'text-green-500' : 'text-red-500'" class="mr-1" />
         <span v-else class="text-gray-500">Checking...</span>
       </button>
     </div>

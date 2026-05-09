@@ -92,6 +92,8 @@ const handleRemoveFromPlaylist = async () => {
   closeMenu()
 }
 
+const downloadedSongs = computed(() => displaySongs.value.filter(s => downloaded.value[s.id]))
+
 const otherPlaylists = computed(() => {
   const all = musicStore.playlists
   if (!playlist.value || playlist.value.type === 'virtual') return all
@@ -120,7 +122,26 @@ const createNewPlaylist = async () => {
 const download = async () => {
   if (!menuSong.value) return
   API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false }, false)
+  downloaded.value[menuSong.value.id] = true
   closeMenu()
+}
+
+const isOffline = computed(() => userStore.checked && !userStore.online)
+
+const downloaded = ref({})
+
+const checkDownloaded = async (songs) => {
+  const paths = songs.map(s => `/api/music/${s.id}/file`)
+  try {
+    const status = await API.checkCache(paths)
+    const map = {}
+    songs.forEach(s => {
+      map[s.id] = !!status[`/api/music/${s.id}/file`]
+    })
+    downloaded.value = map
+  } catch {
+    downloaded.value = {}
+  }
 }
 
 const loading = ref(true)
@@ -172,6 +193,9 @@ const loadPlaylist = async () => {
     } else {
       error.value = 'Playlist not found'
     }
+    if (songs.length > 0) {
+      checkDownloaded(songs)
+    }
   } catch (e) {
     error.value = 'Failed to load playlist'
     console.error('Failed to load playlist:', e)
@@ -203,10 +227,14 @@ watch(() => route.params.id, () => {
             <button @click="close" class="w-32 bg-gray-700 text-white py-2 rounded-full text-center text-sm font-medium">
               <FontAwesomeIcon :icon="['fas', 'arrow-left']" class="mr-2" />Back
             </button>
-            <button @click="playFirst" class="w-32 py-2 bg-white text-black rounded-full text-center text-sm font-medium">
+            <button @click="playFirst"
+              :class="['w-32 py-2 rounded-full text-center text-sm font-medium', isOffline && !downloadedSongs.length ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-white text-black']"
+              :disabled="isOffline && !downloadedSongs.length">
               <FontAwesomeIcon :icon="['fas', 'play']" class="mr-2" />Play
             </button>
-            <button @click="shufflePlay" class="w-32 py-2 bg-gray-700 text-white rounded-full text-center text-sm font-medium">
+            <button @click="shufflePlay"
+              :class="['w-32 py-2 rounded-full text-center text-sm font-medium', isOffline && !downloadedSongs.length ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white']"
+              :disabled="isOffline && !downloadedSongs.length">
               <FontAwesomeIcon :icon="['fas', 'random']" class="mr-2" />Shuffle
             </button>
           </div>
@@ -214,12 +242,21 @@ watch(() => route.params.id, () => {
 
         <div class="p-4">
           <div v-for="(s, idx) in displaySongs" :key="s.id"
-            class="flex items-center gap-3 p-3 rounded hover:bg-gray-800 cursor-pointer"
-            :class="{ 'bg-gray-800': idx === currentIndex }"
-            @click="playSong(idx)">
+            class="flex items-center gap-3 p-3 rounded"
+            :class="{
+              'bg-gray-800': idx === currentIndex,
+              'opacity-50': isOffline && !downloaded[s.id],
+              'hover:bg-gray-800': !isOffline || downloaded[s.id],
+              'cursor-pointer': !isOffline || downloaded[s.id],
+              'cursor-default': isOffline && !downloaded[s.id],
+            }"
+            @click="(!isOffline || downloaded[s.id]) && playSong(idx)">
             <div class="flex-1">
               <div class="text-sm">{{ cleanTitle(s.title) }}</div>
               <div class="text-xs text-gray-400">{{ s.artist }}</div>
+            </div>
+            <div v-if="downloaded[s.id]" class="text-xs text-green-400 mr-1">
+              <FontAwesomeIcon :icon="['fas', 'check']" />
             </div>
             <button @click.stop="openMenu(s)" class="text-gray-400 px-2">
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
@@ -233,6 +270,7 @@ watch(() => route.params.id, () => {
       v-if="showMenu"
       :song="menuSong"
       :playlist="playlist"
+      :downloaded="downloaded[menuSong?.id]"
       :has-active-queue="hasActiveQueue"
       :in-queue="menuSongInQueue"
       :other-playlists="otherPlaylists"

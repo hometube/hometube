@@ -95,6 +95,25 @@ self.addEventListener('message', (event) => {
     writeToCache("!cache-rules", cacheRules)
     console.log('[SW] Cache rules updated:', cacheRules)
   }
+  if (event.data?.type === 'CHECK_CACHE') {
+    const paths = event.data.paths
+    const results = {}
+    const transaction = cacheDB.transaction('requests', 'readonly')
+    const store = transaction.objectStore('requests')
+    Promise.all(paths.map(path => {
+      return new Promise(resolve => {
+        const req = store.get(path)
+        req.onsuccess = () => resolve({ path, found: !!req.result })
+        req.onerror = () => resolve({ path, found: false })
+      })
+    })).then(results => {
+      const status = {}
+      results.forEach(r => status[r.path] = r.found)
+      if (event.ports[0]) {
+        event.ports[0].postMessage({ type: 'CACHE_STATUS', status })
+      }
+    })
+  }
 })
 
 self.addEventListener('fetch', (event) => {

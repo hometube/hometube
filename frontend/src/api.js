@@ -58,6 +58,27 @@ export const ServiceWorker = {
     } else {
       console.log('[API] No SW controller available')
     }
+  },
+  async checkCache(paths) {
+    if (!ServiceWorker.ready) {
+      await swReady
+    }
+    return new Promise((resolve) => {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = (event) => {
+          if (event.data?.type === 'CACHE_STATUS') {
+            resolve(event.data.status)
+          }
+        }
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CHECK_CACHE',
+          paths
+        }, [channel.port2])
+      } else {
+        resolve({})
+      }
+    })
   }
 }
 
@@ -194,6 +215,10 @@ export const API = {
     ServiceWorker.sendCacheRule('/api' + path, options)
     await new Promise(resolve => setTimeout(resolve, 100))
     return API.get(path, {}, json)
+  },
+  async checkCache(paths) {
+    await swReady
+    return ServiceWorker.checkCache(paths)
   },
 
   async downloadFile(url, filename) {

@@ -7,6 +7,7 @@ const props = defineProps({
   playlist: { type: Object, default: null },
   hasActiveQueue: { type: Boolean, default: false },
   inQueue: { type: Boolean, default: false },
+  downloaded: { type: Boolean, default: false },
   otherPlaylists: { type: Array, default: () => [] },
   cleanTitle: { type: Function, default: (t) => t || '' },
 })
@@ -59,7 +60,10 @@ function handleClose() {
           <button v-if="playlist && playlist.type !== 'virtual'" @click="emit('remove-from-playlist'); handleClose()" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 text-red-400">
             <FontAwesomeIcon :icon="['fas', 'trash']" class="w-5" /><span>Remove from Playlist</span>
           </button>
-          <button v-if="!downloaded" @click="emit('download'); handleClose()" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 text-blue-400">
+          <button v-if="downloaded" disabled class="w-full text-left py-3 px-2 rounded flex items-center gap-3 text-green-400">
+            <FontAwesomeIcon :icon="['fas', 'check']" class="w-5" /><span>Downloaded</span>
+          </button>
+          <button v-else @click="emit('download'); handleClose()" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 text-blue-400">
             <FontAwesomeIcon :icon="['fas', 'download']" class="w-5" /><span>Download</span>
           </button>
           <button @click="handleClose" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 mt-2 border-t border-gray-700 pt-3 text-gray-400">
