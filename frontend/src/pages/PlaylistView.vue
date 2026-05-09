@@ -119,9 +119,26 @@ const createNewPlaylist = async () => {
   closeMenu()
 }
 
+const handleDeleteSong = async () => {
+  if (!menuSong.value) return
+  if (!confirm(`Delete "${cleanTitle(menuSong.value.title)}"? This cannot be undone.`)) return
+  await API.delete(`/music/${menuSong.value.id}`)
+  await load()
+  loadPlaylist()
+  closeMenu()
+}
+
+const handleDeletePlaylist = async () => {
+  if (!playlist.value || playlist.value.type === 'virtual') return
+  if (!confirm(`Delete playlist "${playlist.value.name}"?`)) return
+  await API.delete(`/playlists/${playlist.value.id}`)
+  await load()
+  router.push('/music')
+}
+
 const download = async () => {
   if (!menuSong.value) return
-  API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false }, false)
+  API.cache(`/music/${menuSong.value}/file`, { ttl: Infinity, refetch: false }, false)
   const idx = displaySongs.value.findIndex(s => s.id === menuSong.value.id)
   if (idx >= 0) displaySongs.value[idx].downloaded = true
   closeMenu()
@@ -205,6 +222,11 @@ watch(() => route.params.id, () => {
       <div class="relative z-10 h-full overflow-y-auto pb-24">
         <div class="p-4 py-8">
           <div class="font-bold text-lg text-center mb-4">{{ playlist?.name || 'Songs' }}</div>
+          <div v-if="playlist && playlist.type !== 'virtual'" class="flex justify-center mb-2">
+            <button @click="handleDeletePlaylist" class="text-red-400 text-xs flex items-center gap-1 hover:text-red-300">
+              <FontAwesomeIcon :icon="['fas', 'trash']" /> Delete Playlist
+            </button>
+          </div>
           <div class="flex items-center justify-center gap-2 mb-6">
             <button @click="close" class="w-32 bg-gray-700 text-white py-2 rounded-full text-center text-sm font-medium">
               <FontAwesomeIcon :icon="['fas', 'arrow-left']" class="mr-2" />Back
@@ -266,6 +288,7 @@ watch(() => route.params.id, () => {
       @add-to-playlist="handleAddToPlaylist"
       @create-new-playlist="createNewPlaylist"
       @download="download"
+      @delete="handleDeleteSong"
     />
   </div>
 </template>

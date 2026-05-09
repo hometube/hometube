@@ -260,6 +260,7 @@ export const useMusicStore = defineStore('music', () => {
     const wasPlaying = playing.value && currentIndex.value >= 0
     const currentSongId = wasPlaying ? displaySongs.value[currentIndex.value]?.id : null
 
+    currentIndex.value = -1
     playlist.value = pl
     playlistId.value = plId
     originalOrder.value = songs

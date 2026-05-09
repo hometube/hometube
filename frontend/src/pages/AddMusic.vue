@@ -29,13 +29,6 @@ const addMusic = async () => {
     playlistId = pl.id
   }
   const music = await API.post('/music/add', { url: url.value, user_id: userStore.user.id, playlist_id: playlistId })
-  if (!music.downloaded) {
-    const downloadResult = await API.post(`/music/${music.id}/download`, {})
-    if (confirm('Download complete! Save to device?')) {
-      const filename = downloadResult.filename || `${music.id}.mp3`
-      API.downloadFile(`/api/music/${music.id}/file`, `${music.title}.${filename.split('.').pop()}`)
-    }
-  }
   url.value = ''
   loading.value = false
   router.push('/music')
@@ -61,7 +54,7 @@ onMounted(loadPlaylists)
       <input v-model="newPlaylistName" placeholder="Or create new playlist..." class="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white" />
     </div>
 
-    <button @click="add" :disabled="loading || !url" class="w-full p-3 bg-blue-600 rounded-lg text-white disabled:bg-gray-700">
+    <button @click="addMusic" :disabled="loading || !url" class="w-full p-3 bg-blue-600 rounded-lg text-white disabled:bg-gray-700">
       <FontAwesomeIcon :icon="['fas', 'music']" /> {{ loading ? 'Adding...' : 'Add Music' }}
     </button>
   </div>

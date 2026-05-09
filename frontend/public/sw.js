@@ -157,7 +157,15 @@ self.addEventListener('fetch', (event) => {
         modifiedURL.protocol = backendOrigin.protocol
         modifiedURL.host = backendOrigin.host
         modifiedURL.port = backendOrigin.port
-        const modifiedRequest = new Request(modifiedURL, { headers: modifiedHeaders })
+        const isStreamBody = !['GET', 'HEAD'].includes(event.request.method) && event.request.body !== null
+        const modifiedRequest = new Request(modifiedURL.toString(), {
+          method: event.request.method,
+          headers: modifiedHeaders,
+          body: isStreamBody ? event.request.body : null,
+          ...(isStreamBody ? { duplex: 'half' } : {}),
+          mode: 'cors',
+          credentials: 'omit'
+        })
         
         try {
           const response = await fetch(modifiedRequest)

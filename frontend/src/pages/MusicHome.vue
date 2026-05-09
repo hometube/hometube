@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '../stores/user.js'
 import { useMusicStore } from '../stores/music.js'
+import { API } from '../api.js'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -24,6 +25,13 @@ const openPlaylist = (pl) => {
 const openVirtual = (vp) => {
   router.push(`/music/playlist/${vp.id}`)
 }
+
+const deletePlaylist = async (e, pl) => {
+  e.stopPropagation()
+  if (!confirm(`Delete playlist "${pl.name}"?`)) return
+  await API.delete(`/playlists/${pl.id}`)
+  await musicStore.load()
+}
 </script>
 
 <template>
@@ -42,8 +50,11 @@ const openVirtual = (vp) => {
       </div>
       <div v-else class="space-y-2">
         <div v-for="pl in musicStore.playlists" :key="pl.id" @click="openPlaylist(pl)"
-          class="bg-gray-800 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-700">
+          class="bg-gray-800 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-700 flex items-center justify-between">
           <div class="font-medium">{{ pl.name }}</div>
+          <button @click="(e) => deletePlaylist(e, pl)" class="text-gray-500 hover:text-red-400">
+            <FontAwesomeIcon :icon="['fas', 'trash']" />
+          </button>
         </div>
       </div>
     </div>

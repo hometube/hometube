@@ -480,13 +480,73 @@ def add_music(data: MusicAdd, token_valid: bool = Depends(verify_token), db: Ses
     info = ytdlp.get_music_info(data.url)
     if not info:
         raise HTTPException(400, "Invalid music URL")
+
+    if "entries" in info:
+        entries = info.get("entries", [])
+        if not entries:
+            raise HTTPException(400, "Empty playlist")
+
+        music_ids = []
+        for entry in entries:
+            if not entry or not entry.get("id"):
+                continue
+            title = clean_title(entry.get("title", "Unknown"))
+            artist = entry.get("artist") or entry.get("channel") or entry.get("uploader")
+            album_art = entry.get("thumbnail") or info.get("thumbnail")
+            video_id = entry.get("id")
+            entry_url = entry.get("webpage_url") or entry.get("url") or f"https://www.youtube.com/watch?v={video_id}"
+
+            music = models.Music(
+                video_id=video_id,
+                url=entry_url,
+                title=title,
+                artist=artist,
+                album_art=album_art,
+                is_playlist=False,
+                added_by=data.user_id
+            )
+            db.add(music)
+            db.flush()
+            filename = ytdlp.download_music(entry_url, music.id)
+            music.filename = filename
+            music.downloaded = True
+            db.flush()
+            music_ids.append(music.id)
+
+        if data.playlist_id:
+            playlist = db.query(models.Playlist).filter(models.Playlist.id == data.playlist_id).first()
+            if playlist:
+                songs = playlist.songs or []
+                for mid in music_ids:
+                    songs.append({"music_id": mid, "position": 0})
+                playlist.songs = songs
+        else:
+            playlist_name = (info.get("title") or "New Playlist").strip()
+            playlist = models.Playlist(name=playlist_name, user_id=data.user_id)
+            db.add(playlist)
+            db.flush()
+            songs = [{"music_id": mid, "position": i} for i, mid in enumerate(music_ids)]
+            playlist.songs = songs
+
+        db.commit()
+        return {"ok": True, "count": len(music_ids), "is_playlist": True, "playlist_id": playlist.id}
+
     title = clean_title(info.get("title"))
-    music = models.Music(video_id=info.get("id"), url=data.url, title=title, artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist="entries" in info, added_by=data.user_id)
+    music = models.Music(video_id=info.get("id"), url=data.url, title=title, artist=info.get("artist"), album_art=info.get("thumbnail"), is_playlist=False, added_by=data.user_id)
     db.add(music)
     db.commit()
     db.refresh(music)
+    filename = ytdlp.download_music(music.url, music.id)
+    music.filename = filename
+    music.downloaded = True
+    db.commit()
     if data.playlist_id:
-        add_to_playlist(data.playlist_id, PlaylistAddSong(music_id=music.id), db)
+        playlist = db.query(models.Playlist).filter(models.Playlist.id == data.playlist_id).first()
+        if playlist:
+            songs = playlist.songs or []
+            songs.append({"music_id": music.id, "position": 0})
+            playlist.songs = songs
+            db.commit()
     return music
 
 @app.get("/api/music")
@@ -514,6 +574,15 @@ def serve_music_by_id(music_id: int, token_valid: bool = Depends(verify_token), 
         raise HTTPException(404)
 
     print(f"[DEBUG] Serving music {music_id}: filename={music.filename}, video_id={music.video_id}, url={music.url}, title={music.title}")
+
+    # Auto-download if not already downloaded
+    if not music.downloaded or not music.filename or not os.path.exists(f"data/downloads/music/{music.filename}"):
+        print(f"[DEBUG] Music not downloaded, triggering download...")
+        filename = ytdlp.download_music(music.url, music.id)
+        if filename:
+            music.filename = filename
+            music.downloaded = True
+            db.commit()
 
     # Use stored filename if available
     if music.filename:
@@ -588,6 +657,28 @@ def serve_music_by_id(music_id: int, token_valid: bool = Depends(verify_token), 
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+@app.delete("/api/music/{music_id}")
+def delete_music(music_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    music = db.query(models.Music).filter(models.Music.id == music_id).first()
+    if not music:
+        raise HTTPException(404)
+
+    # Remove from all playlists
+    playlists = db.query(models.Playlist).all()
+    for pl in playlists:
+        if pl.songs:
+            pl.songs = [s for s in pl.songs if s.get("music_id") != music_id]
+
+    # Delete file from disk
+    if music.filename:
+        path = f"data/downloads/music/{music.filename}"
+        if os.path.exists(path):
+            os.remove(path)
+
+    db.delete(music)
+    db.commit()
+    return {"ok": True}
 
 # Downloads status
 @app.get("/api/downloads")

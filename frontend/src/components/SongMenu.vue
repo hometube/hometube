@@ -22,6 +22,7 @@ const emit = defineEmits([
   'add-to-playlist',
   'create-new-playlist',
   'download',
+  'delete',
 ])
 
 const showPlaylistSubmenu = ref(false)
@@ -65,6 +66,9 @@ function handleClose() {
           </button>
           <button v-else @click="emit('download'); handleClose()" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 text-blue-400">
             <FontAwesomeIcon :icon="['fas', 'download']" class="w-5" /><span>Download</span>
+          </button>
+          <button @click="emit('delete'); handleClose()" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 text-red-400">
+            <FontAwesomeIcon :icon="['fas', 'trash']" class="w-5" /><span>Delete Song</span>
           </button>
           <button @click="handleClose" class="w-full text-left py-3 px-2 hover:bg-gray-700 rounded flex items-center gap-3 mt-2 border-t border-gray-700 pt-3 text-gray-400">
             <FontAwesomeIcon :icon="['fas', 'times']" class="w-5" /><span>Cancel</span>
