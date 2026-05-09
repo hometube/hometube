@@ -100,6 +100,9 @@ class PlaylistCreate(BaseModel):
     name: str
     user_id: int
 
+class PlaylistRename(BaseModel):
+    name: str
+
 class PlaylistAddSong(BaseModel):
     music_id: int
     position: int = 0
@@ -460,6 +463,15 @@ def remove_from_playlist(playlist_id: int, music_id: int, token_valid: bool = De
     playlist.songs = [s for s in (playlist.songs or []) if s.get("music_id") != music_id]
     db.commit()
     return {"ok": True}
+
+@app.put("/api/playlists/{playlist_id}")
+def rename_playlist(playlist_id: int, data: PlaylistRename, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    playlist = db.query(models.Playlist).filter(models.Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(404)
+    playlist.name = data.name
+    db.commit()
+    return playlist
 
 @app.delete("/api/playlists/{playlist_id}")
 def delete_playlist(playlist_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):

@@ -172,6 +172,22 @@ export const API = {
     return res.json()
   },
 
+  async put(path, body = {}) {
+    await swReady
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS, 'Content-Type': 'application/json' }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
+    const res = await fetch(buildUrl(path), {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(body)
+    })
+    if (!res.ok) throw new Error(`PUT ${path} failed: ${res.status}`)
+    return res.json()
+  },
+
   async delete(path) {
     await swReady
     const jwt = getJWT()

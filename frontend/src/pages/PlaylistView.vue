@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { API } from '../api.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import SongMenu from '../components/SongMenu.vue'
+import PlaylistMenu from '../components/PlaylistMenu.vue'
 import { useUserStore } from '../stores/user.js'
 import { useMusicStore } from '../stores/music.js'
 
@@ -47,16 +48,17 @@ const {
   load,
 } = musicStore
 
-const showMenu = ref(false)
+const showPlaylistMenu = ref(false)
+const showSongMenu = ref(false)
 const menuSong = ref(null)
 
-const openMenu = (song) => {
+const openSongMenu = (song) => {
   menuSong.value = song
-  showMenu.value = true
+  showSongMenu.value = true
 }
 
 const closeMenu = () => {
-  showMenu.value = false
+  showSongMenu.value = false
   menuSong.value = null
 }
 
@@ -128,12 +130,31 @@ const handleDeleteSong = async () => {
   closeMenu()
 }
 
+const handleRenamePlaylist = async () => {
+  if (!playlist.value || playlist.value.type === 'virtual') return
+  const name = prompt('Rename playlist:', playlist.value.name)
+  if (!name || name === playlist.value.name) return
+  await API.put(`/playlists/${playlist.value.id}`, { name })
+  playlist.value.name = name
+  await load()
+}
+
 const handleDeletePlaylist = async () => {
   if (!playlist.value || playlist.value.type === 'virtual') return
   if (!confirm(`Delete playlist "${playlist.value.name}"?`)) return
   await API.delete(`/playlists/${playlist.value.id}`)
   await load()
   router.push('/music')
+}
+
+const handleDownloadPlaylist = async () => {
+  if (!playlist.value || playlist.value.type === 'virtual' || !displaySongs.value.length) return
+  for (const song of displaySongs.value) {
+    if (!song.downloaded) {
+      API.cache(`/music/${song.id}/file`, { ttl: Infinity, refetch: false }, false)
+    }
+  }
+  displaySongs.value = displaySongs.value.map(s => ({ ...s, downloaded: true }))
 }
 
 const download = async () => {
@@ -222,11 +243,6 @@ watch(() => route.params.id, () => {
       <div class="relative z-10 h-full overflow-y-auto pb-24">
         <div class="p-4 py-8">
           <div class="font-bold text-lg text-center mb-4">{{ playlist?.name || 'Songs' }}</div>
-          <div v-if="playlist && playlist.type !== 'virtual'" class="flex justify-center mb-2">
-            <button @click="handleDeletePlaylist" class="text-red-400 text-xs flex items-center gap-1 hover:text-red-300">
-              <FontAwesomeIcon :icon="['fas', 'trash']" /> Delete Playlist
-            </button>
-          </div>
           <div class="flex items-center justify-center gap-2 mb-6">
             <button @click="close" class="w-32 bg-gray-700 text-white py-2 rounded-full text-center text-sm font-medium">
               <FontAwesomeIcon :icon="['fas', 'arrow-left']" class="mr-2" />Back
@@ -240,6 +256,11 @@ watch(() => route.params.id, () => {
               :class="['w-32 py-2 rounded-full text-center text-sm font-medium', isOffline && !downloadedSongs.length ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white']"
               :disabled="isOffline && !downloadedSongs.length">
               <FontAwesomeIcon :icon="['fas', 'random']" class="mr-2" />Shuffle
+            </button>
+            <button @click="showPlaylistMenu = true"
+              :class="['-mr-10 p-2 rounded-full text-center text-sm font-medium bg-gray-700 text-white']"
+            >
+              <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
             </button>
           </div>
         </div>
@@ -262,7 +283,7 @@ watch(() => route.params.id, () => {
             <div v-if="s.downloaded" class="text-xs text-gray-400 mr-1">
               <FontAwesomeIcon :icon="['fas', 'download']" />
             </div>
-            <button @click.stop="openMenu(s)" class="text-gray-400 px-2">
+            <button @click.stop="openSongMenu(s)" class="text-gray-400 px-2">
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
             </button>
           </div>
@@ -270,8 +291,17 @@ watch(() => route.params.id, () => {
       </div>
     </div>
 
+    <PlaylistMenu
+      v-if="showPlaylistMenu"
+      :playlist="playlist"
+      @close="showPlaylistMenu = false"
+      @download="handleDownloadPlaylist"
+      @rename="handleRenamePlaylist"
+      @delete="handleDeletePlaylist"
+    />
+
     <SongMenu
-      v-if="showMenu"
+      v-if="showSongMenu"
       :song="menuSong"
       :playlist="playlist"
       :downloaded="menuSong?.downloaded"
