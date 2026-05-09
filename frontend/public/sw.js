@@ -14,14 +14,6 @@ CacheRequest.onupgradeneeded = (event) => {
   if (!db.objectStoreNames.contains('requests')) {
     db.createObjectStore('requests', { keyPath: 'id' })
   }
-
-  setTimeout(() => {
-    readFromCache("!cache-rules").then((cachedRules) => {
-      if (cachedRules) {
-        Object.assign(cacheRules, cachedRules)
-      }
-    })
-  }, 100)
 }
 
 CacheRequest.onsuccess = (event) => {
@@ -48,17 +40,19 @@ async function readFromCache(id) {
   })
 }
 
-async function writeToCache(id, response) {
-  const body = await response.clone().arrayBuffer()
-  const headers = {}
-  for (const [key, value] of response.headers.entries()) {
-    headers[key] = value
+async function writeToCache(id, data) {
+  if (data instanceof Response) {
+    return writeToCache(id, {
+      body: await data.clone().arrayBuffer(),
+      headers: Object.fromEntries(data.headers.entries()),
+      timestamp: Date.now()
+    })
   }
 
   return new Promise(async (resolve, reject) => {
     const transaction = cacheDB.transaction('requests', 'readwrite')
     const store = transaction.objectStore('requests')
-    const request = store.put({ id, body, headers, timestamp: Date.now() })
+    const request = store.put({ id, ...data, timestamp: Date.now() })
 
     request.onsuccess = () => {
       resolve(request.result)
@@ -68,6 +62,18 @@ async function writeToCache(id, response) {
       reject(request.error)
     }
   })
+}
+
+let restoredCacheRules = false
+async function restoreCacheRules() {
+  if (restoredCacheRules) return
+  restoredCacheRules = true
+
+  const cachedRules = await readFromCache("!cache-rules")
+
+  if (cachedRules) {
+    Object.assign(cacheRules, cachedRules.rules)
+  }
 }
 
 self.addEventListener('install', () => {
@@ -92,7 +98,7 @@ self.addEventListener('message', (event) => {
   }
   if (event.data?.type === 'SET_CACHE_RULE') {
     cacheRules[event.data.path] = event.data.options
-    writeToCache("!cache-rules", cacheRules)
+    writeToCache("!cache-rules", { rules: cacheRules })
     console.log('[SW] Cache rules updated:', cacheRules)
   }
   if (event.data?.type === 'CHECK_CACHE') {
@@ -117,6 +123,8 @@ self.addEventListener('message', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
+  restoreCacheRules()
+
   const url = new URL(event.request.url)  
   if (url.pathname.startsWith('/api/')) {
     console.log('[SW] Intercepted API request:', url.pathname + url.search)

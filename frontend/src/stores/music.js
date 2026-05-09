@@ -47,6 +47,24 @@ export const useMusicStore = defineStore('music', () => {
   const playlists = ref([])
   const songs = ref([])
 
+  const downloadedCache = ref({})
+
+  const checkDownloaded = async (songs) => {
+    const paths = songs.map(s => `/api/music/${s.id}/file`)
+    try {
+      const status = await API.checkCache(paths)
+      downloadedCache.value = Object.fromEntries(
+        songs.map(s => [s.id, !!status[`/api/music/${s.id}/file`]])
+      )
+      displaySongs.value = displaySongs.value.map(s => ({
+        ...s,
+        downloaded: downloadedCache.value[s.id] || false
+      }))
+    } catch {
+      // leave current state
+    }
+  }
+
   const mySongs = computed(() => songs.value.filter(m => m.added_by === useUserStore().user?.id))
 
   const virtualPlaylists = computed(() => [
@@ -146,7 +164,15 @@ export const useMusicStore = defineStore('music', () => {
       playlist.value = pl
       playlistId.value = state.playlistId
       originalOrder.value = songs
-      displaySongs.value = [...songs]
+
+      if (!downloadedCache.value || Object.keys(downloadedCache.value).length === 0) {
+        await checkDownloaded(songs)
+      }
+
+      displaySongs.value = songs.map(s => ({
+        ...s,
+        downloaded: downloadedCache.value[s.id] || false
+      }))
       shuffled.value = state.shuffled
       repeat.value = state.repeat
 
@@ -208,7 +234,10 @@ export const useMusicStore = defineStore('music', () => {
     playlist.value = pl
     playlistId.value = plId
     originalOrder.value = songs
-    displaySongs.value = [...songs]
+    displaySongs.value = songs.map(s => ({
+      ...s,
+      downloaded: downloadedCache.value[s.id] || false
+    }))
     shuffled.value = JSON.parse(localStorage.getItem(`playlist_${plId}_shuffled`) || 'false')
 
     if (shuffled.value) {
@@ -221,6 +250,8 @@ export const useMusicStore = defineStore('music', () => {
         currentIndex.value = newIndex
       }
     }
+
+    checkDownloaded(songs)
   }
 
   const shuffleOrder = () => {
@@ -234,13 +265,25 @@ export const useMusicStore = defineStore('music', () => {
     currentIndex.value = displaySongs.value.findIndex(s => s.id === currentSongId)
   }
 
-  const playSong = (index, reloadAudio = true) => {
+  const playSong = async (index, reloadAudio = true) => {
+    if (!Object.keys(downloadedCache.value).length) {
+      await checkDownloaded(displaySongs.value)
+    }
+
     currentIndex.value = index
+    
+    const song = displaySongs.value[index]
+    if (!song) return
     playing.value = true
+
+    if (song.downloaded) {
+      ServiceWorker.sendCacheRule(`/api/music/${song.id}/file`, { ttl: Infinity, refetch: false })
+    }
+
     if (audio.value) {
       if (reloadAudio) {
         currentTime.value = 0
-        audio.value.src = `/api/music/${displaySongs.value[index].id}/file`
+        audio.value.src = `/api/music/${song.id}/file`
         audio.value.load()
       }
       audio.value.play().catch(() => {})
@@ -368,6 +411,7 @@ export const useMusicStore = defineStore('music', () => {
     init,
     load,
     loadPlaylistSongs,
+    checkDownloaded,
     shuffleOrder,
     playSong,
     togglePlay,

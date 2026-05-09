@@ -92,7 +92,7 @@ const handleRemoveFromPlaylist = async () => {
   closeMenu()
 }
 
-const downloadedSongs = computed(() => displaySongs.value.filter(s => downloaded.value[s.id]))
+const downloadedSongs = computed(() => displaySongs.value.filter(s => s.downloaded))
 
 const otherPlaylists = computed(() => {
   const all = musicStore.playlists
@@ -122,27 +122,12 @@ const createNewPlaylist = async () => {
 const download = async () => {
   if (!menuSong.value) return
   API.cache(`/music/${menuSong.value.id}/file`, { ttl: Infinity, refetch: false }, false)
-  downloaded.value[menuSong.value.id] = true
+  const idx = displaySongs.value.findIndex(s => s.id === menuSong.value.id)
+  if (idx >= 0) displaySongs.value[idx].downloaded = true
   closeMenu()
 }
 
 const isOffline = computed(() => userStore.checked && !userStore.online)
-
-const downloaded = ref({})
-
-const checkDownloaded = async (songs) => {
-  const paths = songs.map(s => `/api/music/${s.id}/file`)
-  try {
-    const status = await API.checkCache(paths)
-    const map = {}
-    songs.forEach(s => {
-      map[s.id] = !!status[`/api/music/${s.id}/file`]
-    })
-    downloaded.value = map
-  } catch {
-    downloaded.value = {}
-  }
-}
 
 const loading = ref(true)
 const error = ref(null)
@@ -193,9 +178,6 @@ const loadPlaylist = async () => {
     } else {
       error.value = 'Playlist not found'
     }
-    if (songs.length > 0) {
-      checkDownloaded(songs)
-    }
   } catch (e) {
     error.value = 'Failed to load playlist'
     console.error('Failed to load playlist:', e)
@@ -245,18 +227,18 @@ watch(() => route.params.id, () => {
             class="flex items-center gap-3 p-3 rounded"
             :class="{
               'bg-gray-800': idx === currentIndex,
-              'opacity-50': isOffline && !downloaded[s.id],
-              'hover:bg-gray-800': !isOffline || downloaded[s.id],
-              'cursor-pointer': !isOffline || downloaded[s.id],
-              'cursor-default': isOffline && !downloaded[s.id],
+              'opacity-50': isOffline && !s.downloaded,
+              'hover:bg-gray-800': !isOffline || s.downloaded,
+              'cursor-pointer': !isOffline || s.downloaded,
+              'cursor-default': isOffline && !s.downloaded,
             }"
-            @click="(!isOffline || downloaded[s.id]) && playSong(idx)">
+            @click="(!isOffline || s.downloaded) && playSong(idx)">
             <div class="flex-1">
               <div class="text-sm">{{ cleanTitle(s.title) }}</div>
               <div class="text-xs text-gray-400">{{ s.artist }}</div>
             </div>
-            <div v-if="downloaded[s.id]" class="text-xs text-green-400 mr-1">
-              <FontAwesomeIcon :icon="['fas', 'check']" />
+            <div v-if="s.downloaded" class="text-xs text-gray-400 mr-1">
+              <FontAwesomeIcon :icon="['fas', 'download']" />
             </div>
             <button @click.stop="openMenu(s)" class="text-gray-400 px-2">
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
@@ -270,7 +252,7 @@ watch(() => route.params.id, () => {
       v-if="showMenu"
       :song="menuSong"
       :playlist="playlist"
-      :downloaded="downloaded[menuSong?.id]"
+      :downloaded="menuSong?.downloaded"
       :has-active-queue="hasActiveQueue"
       :in-queue="menuSongInQueue"
       :other-playlists="otherPlaylists"
