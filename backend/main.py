@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -9,6 +9,9 @@ import asyncio
 import re
 import os
 import secrets
+import zipfile
+import io
+import json
 from contextlib import asynccontextmanager
 import sys
 import urllib.parse
@@ -112,6 +115,14 @@ class VideoWatch(BaseModel):
 
 class VideoKeep(BaseModel):
     keep: bool = True
+
+class ExportRequest(BaseModel):
+    type: str = "all"
+    user_id: Optional[int] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    video_ids: Optional[List[int]] = None
+    music_ids: Optional[List[int]] = None
 
 Base.metadata.create_all(bind=engine)
 
@@ -691,6 +702,244 @@ def delete_music(music_id: int, token_valid: bool = Depends(verify_token), db: S
     db.delete(music)
     db.commit()
     return {"ok": True}
+
+# Export / Import
+def serialize_row(obj):
+    d = {}
+    for col in obj.__table__.columns:
+        val = getattr(obj, col.name)
+        if isinstance(val, datetime):
+            val = val.isoformat()
+        d[col.name] = val
+    return d
+
+@app.post("/api/export")
+def export_data(data: ExportRequest, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        metadata = {"version": 1, "exported_at": datetime.utcnow().isoformat()}
+
+        q = db.query(models.User)
+        if data.user_id:
+            q = q.filter(models.User.id == data.user_id)
+        metadata["users"] = [serialize_row(u) for u in q.all()]
+
+        q = db.query(models.Channel)
+        metadata["channels"] = [serialize_row(c) for c in q.all()]
+
+        q = db.query(models.Subscription)
+        if data.user_id:
+            q = q.filter(models.Subscription.user_id == data.user_id)
+        metadata["subscriptions"] = [serialize_row(s) for s in q.all()]
+
+        q = db.query(models.Video)
+        if data.user_id:
+            q = q.filter(models.Video.added_by == data.user_id)
+        if data.type == "videos" or data.type == "all":
+            if data.video_ids:
+                q = q.filter(models.Video.id.in_(data.video_ids))
+            if data.date_from:
+                q = q.filter(models.Video.created_at >= datetime.fromisoformat(data.date_from))
+            if data.date_to:
+                q = q.filter(models.Video.created_at <= datetime.fromisoformat(data.date_to))
+        else:
+            q = q.filter(False)
+        metadata["videos"] = [serialize_row(v) for v in q.all()]
+
+        q = db.query(models.Music)
+        if data.user_id:
+            q = q.filter(models.Music.added_by == data.user_id)
+        if data.type == "music" or data.type == "all":
+            if data.music_ids:
+                q = q.filter(models.Music.id.in_(data.music_ids))
+            if data.date_from:
+                q = q.filter(models.Music.created_at >= datetime.fromisoformat(data.date_from))
+            if data.date_to:
+                q = q.filter(models.Music.created_at <= datetime.fromisoformat(data.date_to))
+        else:
+            q = q.filter(False)
+        metadata["music"] = [serialize_row(m) for m in q.all()]
+
+        q = db.query(models.Playlist)
+        if data.user_id:
+            q = q.filter(models.Playlist.user_id == data.user_id)
+        metadata["playlists"] = [serialize_row(p) for p in q.all()]
+
+        q = db.query(models.Setting)
+        metadata["settings"] = [serialize_row(s) for s in q.all()]
+
+        zf.writestr("metadata.json", json.dumps(metadata, default=str, indent=2))
+
+        for v in metadata["videos"]:
+            if v.get("downloaded") and v.get("video_id"):
+                fname = f"{v['video_id']}.mp4"
+                fpath = f"data/downloads/videos/{fname}"
+                if os.path.isfile(fpath):
+                    zf.write(fpath, f"videos/{fname}")
+
+        for m in metadata["music"]:
+            fname = m.get("filename")
+            if fname:
+                fpath = f"data/downloads/music/{fname}"
+                if os.path.isfile(fpath):
+                    zf.write(fpath, f"music/{fname}")
+
+    buf.seek(0)
+    filename = f"hometube-export-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.ht"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.post("/api/import")
+async def import_data(file: UploadFile = File(...), token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    if not file.filename.endswith(".ht"):
+        raise HTTPException(400, "File must have .ht extension")
+
+    contents = await file.read()
+    buf = io.BytesIO(contents)
+    summary = {"users": 0, "channels": 0, "subscriptions": 0, "videos": 0, "music": 0, "playlists": 0}
+
+    try:
+        with zipfile.ZipFile(buf, 'r') as zf:
+            if "metadata.json" not in zf.namelist():
+                raise HTTPException(400, "Invalid .ht file: missing metadata.json")
+
+            with zf.open("metadata.json") as f:
+                metadata = json.loads(f.read().decode("utf-8"))
+
+            id_map = {}  # old_id -> new_id per table
+
+            if "users" in metadata:
+                id_map["users"] = {}
+                for u in metadata["users"]:
+                    existing = db.query(models.User).filter(models.User.username == u["username"]).first()
+                    if existing:
+                        id_map["users"][u["id"]] = existing.id
+                    else:
+                        old_id = u["id"]
+                        del u["id"]
+                        new_u = models.User(**u)
+                        db.add(new_u)
+                        db.flush()
+                        id_map["users"][old_id] = new_u.id
+                        summary["users"] += 1
+
+            if "channels" in metadata:
+                id_map["channels"] = {}
+                for c in metadata["channels"]:
+                    old_id = c["id"]
+                    del c["id"]
+                    new_c = models.Channel(**c)
+                    db.add(new_c)
+                    db.flush()
+                    id_map["channels"][old_id] = new_c.id
+                    summary["channels"] += 1
+
+            if "subscriptions" in metadata:
+                id_map["subscriptions"] = {}
+                for s in metadata["subscriptions"]:
+                    old_id = s["id"]
+                    del s["id"]
+                    if s.get("channel_id") and s["channel_id"] in id_map.get("channels", {}):
+                        s["channel_id"] = id_map["channels"][s["channel_id"]]
+                    if s.get("user_id") and s["user_id"] in id_map.get("users", {}):
+                        s["user_id"] = id_map["users"][s["user_id"]]
+                    if s.get("last_checked"):
+                        s["last_checked"] = datetime.fromisoformat(s["last_checked"]) if isinstance(s["last_checked"], str) else s["last_checked"]
+                    if s.get("created_at"):
+                        s["created_at"] = datetime.fromisoformat(s["created_at"]) if isinstance(s["created_at"], str) else s["created_at"]
+                    new_s = models.Subscription(**s)
+                    db.add(new_s)
+                    db.flush()
+                    id_map["subscriptions"][old_id] = new_s.id
+                    summary["subscriptions"] += 1
+
+            if "videos" in metadata:
+                id_map["videos"] = {}
+                for v in metadata["videos"]:
+                    old_id = v["id"]
+                    del v["id"]
+                    if v.get("channel_id") and v["channel_id"] in id_map.get("channels", {}):
+                        v["channel_id"] = id_map["channels"][v["channel_id"]]
+                    if v.get("added_by") and v["added_by"] in id_map.get("users", {}):
+                        v["added_by"] = id_map["users"][v["added_by"]]
+                    if v.get("watched_at"):
+                        v["watched_at"] = datetime.fromisoformat(v["watched_at"]) if isinstance(v["watched_at"], str) else v["watched_at"]
+                    if v.get("created_at"):
+                        v["created_at"] = datetime.fromisoformat(v["created_at"]) if isinstance(v["created_at"], str) else v["created_at"]
+                    new_v = models.Video(**v)
+                    db.add(new_v)
+                    db.flush()
+                    id_map["videos"][old_id] = new_v.id
+                    summary["videos"] += 1
+
+            if "music" in metadata:
+                id_map["music"] = {}
+                for m in metadata["music"]:
+                    old_id = m["id"]
+                    del m["id"]
+                    if m.get("added_by") and m["added_by"] in id_map.get("users", {}):
+                        m["added_by"] = id_map["users"][m["added_by"]]
+                    if m.get("created_at"):
+                        m["created_at"] = datetime.fromisoformat(m["created_at"]) if isinstance(m["created_at"], str) else m["created_at"]
+                    new_m = models.Music(**m)
+                    db.add(new_m)
+                    db.flush()
+                    id_map["music"][old_id] = new_m.id
+                    summary["music"] += 1
+
+            if "playlists" in metadata:
+                id_map["playlists"] = {}
+                for p in metadata["playlists"]:
+                    old_id = p["id"]
+                    del p["id"]
+                    if p.get("user_id") and p["user_id"] in id_map.get("users", {}):
+                        p["user_id"] = id_map["users"][p["user_id"]]
+                    if p.get("songs"):
+                        new_songs = []
+                        for song in p["songs"]:
+                            s = dict(song)
+                            if s.get("music_id") and s["music_id"] in id_map.get("music", {}):
+                                s["music_id"] = id_map["music"][s["music_id"]]
+                            new_songs.append(s)
+                        p["songs"] = new_songs
+                    if p.get("created_at"):
+                        p["created_at"] = datetime.fromisoformat(p["created_at"]) if isinstance(p["created_at"], str) else p["created_at"]
+                    new_p = models.Playlist(**p)
+                    db.add(new_p)
+                    db.flush()
+                    id_map["playlists"][old_id] = new_p.id
+                    summary["playlists"] += 1
+
+            os.makedirs("data/downloads/videos", exist_ok=True)
+            os.makedirs("data/downloads/music", exist_ok=True)
+
+            for name in zf.namelist():
+                if name.startswith("videos/") and not name.endswith("/"):
+                    zf.extract(name, "data/downloads")
+                elif name.startswith("music/") and not name.endswith("/"):
+                    zf.extract(name, "data/downloads")
+
+            if "settings" in metadata:
+                for s in metadata["settings"]:
+                    if s.get("key") == "jwt_secret":
+                        continue
+                    existing = db.query(models.Setting).filter(models.Setting.key == s["key"]).first()
+                    if not existing:
+                        setting_data = {k: v for k, v in s.items() if k in ("key", "value")}
+                        db.add(models.Setting(**setting_data))
+
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, f"Import failed: {str(e)}")
+
+    return {"ok": True, "summary": summary}
 
 # Downloads status
 @app.get("/api/downloads")

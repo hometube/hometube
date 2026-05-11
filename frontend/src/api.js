@@ -237,6 +237,55 @@ export const API = {
     return ServiceWorker.checkCache(paths)
   },
 
+  async exportData(body = {}) {
+    await swReady
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS, 'Content-Type': 'application/json' }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
+    const res = await fetch(buildUrl('/export'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    })
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+    const blob = await res.blob()
+    const disposition = res.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename="?(.+?)"?$/)
+    const filename = match ? match[1] : `hometube-export.ht`
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+    return filename
+  },
+
+  async importData(file) {
+    await swReady
+    const jwt = getJWT()
+    const queryToken = getQueryToken()
+    const headers = { ...BASE_HEADERS }
+    if (jwt) headers['Authorization'] = `Bearer ${jwt}`
+    else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(buildUrl('/import'), {
+      method: 'POST',
+      headers,
+      body: formData
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      let detail = `Import failed: ${res.status}`
+      try { detail = JSON.parse(text).detail || detail } catch {}
+      throw new Error(detail)
+    }
+    return res.json()
+  },
+
   async downloadFile(url, filename) {
     await swReady
     console.log('[API] Downloading file:', url)

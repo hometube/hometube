@@ -29,9 +29,15 @@ const backendMenu = ref(null)
 const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'
   if (route.path.startsWith('/music')) return 'music'
+  if (route.path === '/export' || route.path === '/import') return 'data'
   return 'setup'
 })
-const modeLabel = computed(() => mode.value === 'video' ? 'Video' : 'Music')
+const modeLabel = computed(() => {
+  if (mode.value === 'video') return 'Video'
+  if (mode.value === 'music') return 'Music'
+  if (mode.value === 'data') return 'Data'
+  return 'Setup'
+})
 const hideNavbar = computed(() => mode.value === 'setup')
 
 const navigate = (tab, subPage = null) => {
@@ -42,6 +48,10 @@ const navigate = (tab, subPage = null) => {
     router.push(subPage === 'add' ? '/music/add' : '/music')
   } else if (tab === 'settings') {
     router.push('/settings')
+  } else if (tab === 'export') {
+    router.push('/export')
+  } else if (tab === 'import') {
+    router.push('/import')
   }
 }
 
@@ -149,6 +159,12 @@ onUnmounted(() => {
           </button>
           <button @click="navigate('settings')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'cog']" class="mr-2" /> Settings
+          </button>
+          <button @click="navigate('export')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+            <FontAwesomeIcon :icon="['fas', 'download']" class="mr-2" /> Export Data
+          </button>
+          <button @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+            <FontAwesomeIcon :icon="['fas', 'upload']" class="mr-2" /> Import Data
           </button>
         </div>
       </div>

@@ -8,6 +8,8 @@ import AddMusic from './pages/AddMusic.vue'
 import PlaylistView from './pages/PlaylistView.vue'
 import AboutPage from './pages/AboutPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
+import ExportPage from './pages/ExportPage.vue'
+import ImportPage from './pages/ImportPage.vue'
 import SetupBackend from './pages/SetupBackend.vue'
 import SetupUser from './pages/SetupUser.vue'
 import { API } from './api.js'
@@ -23,7 +25,9 @@ const routes = [
   { path: '/music', name: 'music', component: MusicHome, meta: { requiresUser: true } },
   { path: '/music/add', name: 'music-add', component: AddMusic, meta: { requiresUser: true } },
   { path: '/music/playlist/:id', name: 'playlist', component: PlaylistView, props: true, meta: { requiresUser: true } },
-  { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresUser: true } }
+  { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresUser: true } },
+  { path: '/export', name: 'export', component: ExportPage, meta: { requiresUser: true } },
+  { path: '/import', name: 'import', component: ImportPage, meta: { requiresUser: true } }
 ]
 
 const router = createRouter({
