@@ -34,6 +34,7 @@ export const useVideoStore = defineStore('video', () => {
       let data
       if (isLocalMode()) {
         data = await LocalDB.getAll('videos')
+        data = data.map(d => ({ ...d, downloaded: true }))
       } else {
         data = await API.get('/videos', { user_id: userStore.user.id, filter })
       }

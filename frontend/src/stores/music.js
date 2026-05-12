@@ -81,6 +81,11 @@ export const useMusicStore = defineStore('music', () => {
   const downloadedCache = ref({})
 
   const checkDownloaded = async (songs) => {
+    if (isLocalMode()) {
+      downloadedCache.value = Object.fromEntries(songs.map(s => [s.id, true]))
+      displaySongs.value = displaySongs.value.map(s => ({ ...s, downloaded: true }))
+      return
+    }
     const paths = songs.map(s => `/api/music/${s.id}/file`)
     try {
       const status = await API.checkCache(paths)
@@ -111,6 +116,7 @@ export const useMusicStore = defineStore('music', () => {
       if (isLocalMode()) {
         pls = await LocalDB.getAll('playlists')
         allSongs = await LocalDB.getAll('music')
+        allSongs = allSongs.map(s => ({ ...s, downloaded: true }))
       } else {
         const results = await Promise.all([
           API.get('/playlists', { user_id: userStore.user.id }),

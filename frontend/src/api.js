@@ -42,14 +42,17 @@ const pathToStore = {
 async function fetchFromLocal(path, query) {
   const basePath = path.split('?')[0].replace(/\/+$/, '')
   const store = pathToStore[basePath]
-  if (store) {
-    let data = await LocalDB.getAll(store)
-    if (query.user_id) {
-      const uid = parseInt(query.user_id)
-      data = data.filter(r => r.added_by === uid || r.user_id === uid)
+    if (store) {
+      let data = await LocalDB.getAll(store)
+      if (query.user_id) {
+        const uid = parseInt(query.user_id)
+        data = data.filter(r => r.added_by === uid || r.user_id === uid)
+      }
+      if (store === 'videos' || store === 'music') {
+        data = data.map(d => ({ ...d, downloaded: true }))
+      }
+      return data
     }
-    return data
-  }
   if (basePath.startsWith('/channels/') && basePath.endsWith('/videos')) {
     return []
   }
