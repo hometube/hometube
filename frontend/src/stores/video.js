@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { API } from '../api.js'
+import { API, isLocalMode } from '../api.js'
+import { LocalDB } from '../localDb.js'
 import { useUserStore } from './user.js'
 
 export const useVideoStore = defineStore('video', () => {
@@ -30,7 +31,12 @@ export const useVideoStore = defineStore('video', () => {
     if (!userStore.user?.id) return console.warn('No user ID found, cannot load videos.')
     const filter = currentFilter.value === 'my-feed' ? 'all' : currentFilter.value
     try {
-      const data = await API.get('/videos', { user_id: userStore.user.id, filter })
+      let data
+      if (isLocalMode()) {
+        data = await LocalDB.getAll('videos')
+      } else {
+        data = await API.get('/videos', { user_id: userStore.user.id, filter })
+      }
       videos.value = Array.isArray(data) ? data : []
       console.log('Loaded videos:', videos.value)
     } catch (e) {
@@ -46,8 +52,10 @@ export const useVideoStore = defineStore('video', () => {
 
   const playVideo = async (vid) => {
     playingVideo.value = vid
-    await API.post(`/videos/${vid.id}/watch`, { watched: true })
-    load()
+    if (!isLocalMode()) {
+      await API.post(`/videos/${vid.id}/watch`, { watched: true })
+      load()
+    }
   }
 
   const toggleAudioMode = async () => {
@@ -63,6 +71,7 @@ export const useVideoStore = defineStore('video', () => {
   }
 
   const toggleKeep = async (vid) => {
+    if (isLocalMode()) return
     await API.post(`/videos/${vid.id}/keep`, { keep: !vid.keep_flag })
     load()
   }

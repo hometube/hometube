@@ -12,7 +12,7 @@ import ExportPage from './pages/ExportPage.vue'
 import ImportPage from './pages/ImportPage.vue'
 import SetupBackend from './pages/SetupBackend.vue'
 import SetupUser from './pages/SetupUser.vue'
-import { API } from './api.js'
+import { API, isLocalMode } from './api.js'
 
 const routes = [
   { path: '/', name: 'home', component: AboutPage },
@@ -39,8 +39,9 @@ router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   const backendUrl = localStorage.getItem('backendUrl') || ''
   const lastVisited = localStorage.getItem('lastVisited') || '/video'
+  const localMode = isLocalMode()
 
-  const hasBackend = backendUrl.trim().length > 0
+  const hasBackend = backendUrl.trim().length > 0 || localMode
   const hasUser = !!user && typeof user === 'object' && 'id' in user
 
   // Save current route as last visited (for non-setup, non-home routes)

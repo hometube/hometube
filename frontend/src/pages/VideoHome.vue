@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
-import { API } from '../api.js'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { API, isLocalMode } from '../api.js'
+import { LocalDB } from '../localDb.js'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
@@ -12,9 +13,25 @@ const videoStore = useVideoStore()
 
 const playerRef = ref(null)
 const player = ref(null)
+const localVideoUrl = ref(null)
 
 const playVideo = async (vid) => {
   await videoStore.playVideo(vid)
+  if (isLocalMode()) {
+    const fileRecord = await LocalDB.getFile(`video_${vid.video_id}.mp4`)
+    if (fileRecord?.blob) {
+      if (localVideoUrl.value) URL.revokeObjectURL(localVideoUrl.value)
+      localVideoUrl.value = URL.createObjectURL(fileRecord.blob)
+    } else {
+      const webmRecord = await LocalDB.getFile(`video_${vid.video_id}.webm`)
+      if (webmRecord?.blob) {
+        if (localVideoUrl.value) URL.revokeObjectURL(localVideoUrl.value)
+        localVideoUrl.value = URL.createObjectURL(webmRecord.blob)
+      } else {
+        localVideoUrl.value = null
+      }
+    }
+  }
   await nextTick()
   if (playerRef.value && !player.value) {
     player.value = new Plyr(playerRef.value, {
@@ -38,7 +55,7 @@ onMounted(() => videoStore.load())
     </div>
 
     <div v-if="videoStore.playingVideo" class="mb-4 bg-gray-900 rounded-lg p-2">
-      <video ref="playerRef" :src="`/api/files/videos/${videoStore.playingVideo.video_id}.mp4`" controls class="w-full rounded" crossorigin="anonymous" />
+      <video ref="playerRef" :src="localVideoUrl || `/api/files/videos/${videoStore.playingVideo.video_id}.mp4`" controls class="w-full rounded" crossorigin="anonymous" />
       <div class="flex items-center justify-between mt-2">
         <span class="text-sm">{{ videoStore.playingVideo.title }}</span>
         <div class="flex gap-2">
@@ -66,7 +83,7 @@ onMounted(() => videoStore.load())
           </div>
         </div>
         <div class="flex gap-2">
-          <button v-if="!v.downloaded" @click="API.post(`/videos/${v.id}/download`, { quality: v.quality })" class="px-2 py-1 bg-blue-600 rounded text-xs">
+          <button v-if="!v.downloaded && !isLocalMode()" @click="API.post(`/videos/${v.id}/download`, { quality: v.quality })" class="px-2 py-1 bg-blue-600 rounded text-xs">
             <FontAwesomeIcon :icon="['fas', 'download']" />
           </button>
         </div>

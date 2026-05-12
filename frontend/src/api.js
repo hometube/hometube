@@ -1,5 +1,71 @@
+import JSZip from 'jszip'
+import { LocalDB } from './localDb.js'
+
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 const BASE_HEADERS = { 'ngrok-skip-browser-warning': 'true' }
+
+let localDataChecked = false
+let localDataAvailable = false
+
+export async function checkLocalData() {
+  if (localDataChecked) return localDataAvailable
+  localDataChecked = true
+  localDataAvailable = await LocalDB.hasLocalData()
+  if (localDataAvailable) {
+    localStorage.setItem('localMode', 'true')
+  }
+  return localDataAvailable
+}
+
+export function isLocalMode() {
+  return localStorage.getItem('localMode') === 'true'
+}
+
+export function setLocalMode(val) {
+  if (val) {
+    localStorage.setItem('localMode', 'true')
+  } else {
+    localStorage.removeItem('localMode')
+  }
+}
+
+const pathToStore = {
+  '/users': 'users',
+  '/channels': 'channels',
+  '/videos': 'videos',
+  '/music': 'music',
+  '/playlists': 'playlists',
+  '/subscriptions': 'subscriptions',
+  '/settings': 'settings',
+}
+
+async function fetchFromLocal(path, query) {
+  const basePath = path.split('?')[0].replace(/\/+$/, '')
+  const store = pathToStore[basePath]
+  if (store) {
+    let data = await LocalDB.getAll(store)
+    if (query.user_id) {
+      const uid = parseInt(query.user_id)
+      data = data.filter(r => r.added_by === uid || r.user_id === uid)
+    }
+    return data
+  }
+  if (basePath.startsWith('/channels/') && basePath.endsWith('/videos')) {
+    return []
+  }
+  if (basePath.startsWith('/videos/info') || basePath.startsWith('/music/info')) {
+    return { formats: [] }
+  }
+  const match = basePath.match(/^\/(\w+)\/(\d+)/)
+  if (match) {
+    const [, table, id] = match
+    if (pathToStore[`/${table}`]) {
+      const record = await LocalDB.get(pathToStore[`/${table}`], parseInt(id))
+      return record || null
+    }
+  }
+  throw new Error(`Local data not available for: ${path}`)
+}
 
 function getJWT() {
   return localStorage.getItem('jwt_token') || ''
@@ -142,21 +208,32 @@ function buildUrl(path, query = {}) {
 
 export const API = {
   async get(path, query = {}, json = true) {
+    if (isLocalMode()) {
+      return fetchFromLocal(path, query)
+    }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
     const headers = { ...BASE_HEADERS }
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`
     else if (queryToken) headers['Authorization'] = `Bearer ${queryToken}`
-    const res = await fetch(buildUrl(path, query), { headers })
-    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
-    if (json) {
-      return res.json()
+    try {
+      const res = await fetch(buildUrl(path, query), { headers })
+      if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
+      if (json) {
+        return res.json()
+      }
+      return res
+    } catch (e) {
+      if (isLocalMode()) {
+        return fetchFromLocal(path, query)
+      }
+      throw e
     }
-    return res
   },
 
   async post(path, body = {}) {
+    if (isLocalMode()) return { ok: true }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -173,6 +250,7 @@ export const API = {
   },
 
   async put(path, body = {}) {
+    if (isLocalMode()) return { ok: true }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -189,6 +267,7 @@ export const API = {
   },
 
   async delete(path) {
+    if (isLocalMode()) return { ok: true }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -263,7 +342,127 @@ export const API = {
     return filename
   },
 
-  async importData(file) {
+  async importData(file, localOnly = false) {
+    const useLocal = localOnly || isLocalMode() || !navigator.onLine
+    if (useLocal) {
+      const arrayBuf = await file.arrayBuffer()
+      const zip = await JSZip.loadAsync(arrayBuf)
+      const metaFile = zip.file('metadata.json')
+      if (!metaFile) throw new Error('Invalid .ht file: missing metadata.json')
+      const metadataStr = await metaFile.async('string')
+      const metadata = JSON.parse(metadataStr)
+
+      await LocalDB.clearAll()
+      const summary = { users: 0, channels: 0, subscriptions: 0, videos: 0, music: 0, playlists: 0 }
+      const idMap = {}
+
+      if (metadata.users && metadata.users.length > 0) {
+        const cleaned = metadata.users.map(u => {
+          const { id, ...rest } = u
+          return rest
+        })
+        await LocalDB.store('users', cleaned)
+        idMap.users = {}
+        metadata.users.forEach((u, i) => { idMap.users[u.id] = cleaned[i].id })
+        summary.users = cleaned.length
+      } else {
+        const defaultUser = { username: 'default' }
+        await LocalDB.store('users', defaultUser)
+        idMap.users = {}
+        summary.users = 1
+      }
+
+      if (metadata.channels) {
+        const cleaned = metadata.channels.map(c => {
+          const { id, ...rest } = c
+          return rest
+        })
+        await LocalDB.store('channels', cleaned)
+        idMap.channels = {}
+        metadata.channels.forEach((c, i) => { idMap.channels[c.id] = cleaned[i].id })
+        summary.channels = cleaned.length
+      }
+
+      if (metadata.subscriptions) {
+        const cleaned = metadata.subscriptions.map(s => {
+          const { id, channel_id, user_id, ...rest } = s
+          return {
+            ...rest,
+            channel_id: idMap.channels?.[channel_id] || channel_id,
+            user_id: idMap.users?.[user_id] || user_id,
+          }
+        })
+        await LocalDB.store('subscriptions', cleaned)
+        summary.subscriptions = cleaned.length
+      }
+
+      if (metadata.videos) {
+        const cleaned = metadata.videos.map(v => {
+          const { id, channel_id, added_by, ...rest } = v
+          return {
+            ...rest,
+            channel_id: idMap.channels?.[channel_id] || channel_id,
+            added_by: idMap.users?.[added_by] || added_by,
+          }
+        })
+        await LocalDB.store('videos', cleaned)
+        idMap.videos = {}
+        metadata.videos.forEach((v, i) => { idMap.videos[v.id] = cleaned[i].id })
+        summary.videos = cleaned.length
+      }
+
+      if (metadata.music) {
+        const cleaned = metadata.music.map(m => {
+          const { id, added_by, ...rest } = m
+          return { ...rest, added_by: idMap.users?.[added_by] || added_by }
+        })
+        await LocalDB.store('music', cleaned)
+        idMap.music = {}
+        metadata.music.forEach((m, i) => { idMap.music[m.id] = cleaned[i].id })
+        summary.music = cleaned.length
+      }
+
+      if (metadata.playlists) {
+        const cleaned = metadata.playlists.map(p => {
+          const { id, user_id, songs, ...rest } = p
+          const mappedSongs = (songs || []).map(s => ({
+            ...s,
+            music_id: idMap.music?.[s.music_id] || s.music_id,
+          }))
+          return {
+            ...rest,
+            songs: mappedSongs,
+            user_id: idMap.users?.[user_id] || user_id,
+          }
+        })
+        await LocalDB.store('playlists', cleaned)
+        summary.playlists = cleaned.length
+      }
+
+      const videoFiles = zip.file(/^videos\//)
+      for (const zf of videoFiles) {
+        const name = zf.name.replace('videos/', '')
+        const blob = await zf.async('blob')
+        const mime = name.endsWith('.mp4') ? 'video/mp4' : 'video/webm'
+        const fileBlob = new Blob([await blob.arrayBuffer()], { type: mime })
+        await LocalDB.storeFile(`video_${name}`, 'video', fileBlob, { filename: name })
+      }
+
+      const musicFiles = zip.file(/^music\//)
+      for (const zf of musicFiles) {
+        const name = zf.name.replace('music/', '')
+        const blob = await zf.async('blob')
+        const ext = name.split('.').pop().toLowerCase()
+        const mimeTypes = { mp3: 'audio/mpeg', webm: 'audio/webm', m4a: 'audio/mp4', ogg: 'audio/ogg', flac: 'audio/flac', wav: 'audio/wav' }
+        const mime = mimeTypes[ext] || 'audio/mpeg'
+        const fileBlob = new Blob([await blob.arrayBuffer()], { type: mime })
+        await LocalDB.storeFile(`music_${name}`, 'music', fileBlob, { filename: name })
+      }
+
+      setLocalMode(true)
+      return { ok: true, summary }
+    }
+
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
