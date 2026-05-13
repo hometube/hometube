@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ServiceWorker, pingBackend } from '../api'
+import { isLocalMode, ServiceWorker, pingBackend } from '../api'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
@@ -10,7 +10,7 @@ export const useUserStore = defineStore('user', () => {
   let pingInterval = null
 
   const hasUser = computed(() => !!user.value)
-  const hasBackend = computed(() => backendUrl.value.trim().length > 0)
+  const hasBackend = computed(() => backendUrl.value.trim().length > 0 || isLocalMode())
 
   const checkConnection = async () => {
     online.value = await pingBackend()

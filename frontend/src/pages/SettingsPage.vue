@@ -1,7 +1,8 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { isLocalMode, setLocalMode, setServerMode, getModeName } from '../api.js'
 
 const router = useRouter()
 
@@ -26,6 +27,21 @@ watch(settings.value, () => {
 const toggle = (key) => {
   settings.value[key] = !settings.value[key]
 }
+
+const currentMode = computed(() => getModeName())
+
+const switchMode = () => {
+  const msg = isLocalMode()
+    ? 'Switch to server mode? Your local data will be preserved.'
+    : 'Switch to local mode? Your server connection settings will be preserved.'
+  if (!confirm(msg)) return
+  if (isLocalMode()) {
+    setServerMode()
+  } else {
+    setLocalMode(true)
+  }
+  window.location.reload()
+}
 </script>
 
 <template>
@@ -35,6 +51,24 @@ const toggle = (key) => {
         <FontAwesomeIcon :icon="['fas', 'arrow-left']" />
       </button>
       <h2 class="text-xl font-bold">Settings</h2>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">Mode</div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium">{{ currentMode }}</div>
+            <div class="text-xs text-gray-400">
+              {{ isLocalMode() ? 'Using local IndexedDB storage' : 'Connected to backend server' }}
+            </div>
+          </div>
+          <button @click="switchMode"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+            Switch to {{ isLocalMode() ? 'Server' : 'Local' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="mb-4">

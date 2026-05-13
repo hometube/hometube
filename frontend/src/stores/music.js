@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { API, ServiceWorker, isLocalMode } from '../api.js'
-import { LocalDB } from '../localDb.js'
+import { API } from '../api.js'
 import { useUserStore } from './user.js'
 
 export const useMusicStore = defineStore('music', () => {
@@ -17,9 +16,6 @@ export const useMusicStore = defineStore('music', () => {
   const currentTime = ref(0)
   const duration = ref(0)
   const initialized = ref(false)
-
-  ServiceWorker.sendCacheRule('/api/music', { ttl: Infinity, refetch: true })
-  ServiceWorker.sendCacheRule('/api/playlists', { ttl: Infinity, refetch: true })
 
   const isOffline = computed(() => {
     const userStore = useUserStore()
@@ -68,24 +64,12 @@ export const useMusicStore = defineStore('music', () => {
     displaySongs.value = displaySongs.value.filter(s => s.id !== songId)
   }
 
-  const playNextQueued = () => {
-    if (displaySongs.value.length === 0) return
-    currentIndex.value++
-    playSong(currentIndex.value)
-  }
-
-  // Music data
   const playlists = ref([])
   const songs = ref([])
 
   const downloadedCache = ref({})
 
   const checkDownloaded = async (songs) => {
-    if (isLocalMode()) {
-      downloadedCache.value = Object.fromEntries(songs.map(s => [s.id, true]))
-      displaySongs.value = displaySongs.value.map(s => ({ ...s, downloaded: true }))
-      return
-    }
     const paths = songs.map(s => `/api/music/${s.id}/file`)
     try {
       const status = await API.checkCache(paths)
@@ -96,9 +80,7 @@ export const useMusicStore = defineStore('music', () => {
         ...s,
         downloaded: downloadedCache.value[s.id] || false
       }))
-    } catch {
-      // leave current state
-    }
+    } catch {}
   }
 
   const mySongs = computed(() => songs.value.filter(m => m.added_by === useUserStore().user?.id))
@@ -112,19 +94,10 @@ export const useMusicStore = defineStore('music', () => {
     const userStore = useUserStore()
     if (!userStore.user) return
     try {
-      let pls, allSongs
-      if (isLocalMode()) {
-        pls = await LocalDB.getAll('playlists')
-        allSongs = await LocalDB.getAll('music')
-        allSongs = allSongs.map(s => ({ ...s, downloaded: true }))
-      } else {
-        const results = await Promise.all([
-          API.get('/playlists', { user_id: userStore.user.id }),
-          API.get('/music', { user_id: userStore.user.id })
-        ])
-        pls = results[0]
-        allSongs = results[1]
-      }
+      const [pls, allSongs] = await Promise.all([
+        API.get('/playlists', { user_id: userStore.user.id }),
+        API.get('/music', { user_id: userStore.user.id })
+      ])
       playlists.value = pls
       songs.value = allSongs
     } catch (e) {
@@ -184,43 +157,23 @@ export const useMusicStore = defineStore('music', () => {
       let pl = null
       let songs = []
 
-      if (isLocalMode()) {
-        const allSongs = await LocalDB.getAll('music')
-        if (state.playlistId === 'my-songs') {
-          pl = { type: 'virtual', name: 'My Songs' }
-          songs = allSongs.filter(m => m.added_by === user.id)
-        } else if (state.playlistId === 'all-songs') {
-          pl = { type: 'virtual', name: 'All Songs' }
-          songs = allSongs
-        } else {
-          const playlists = await LocalDB.getAll('playlists')
-          const found = playlists.find(p => p.id === parseInt(state.playlistId))
-          if (found) {
-            pl = found
-            songs = (found.songs || [])
-              .map(s => allSongs.find(m => m.id === s.music_id))
-              .filter(Boolean)
-          }
-        }
+      if (state.playlistId === 'my-songs') {
+        const allSongs = await API.get('/music', { user_id: user.id })
+        pl = { type: 'virtual', name: 'My Songs' }
+        songs = allSongs.filter(m => m.added_by === user.id)
+      } else if (state.playlistId === 'all-songs') {
+        const allSongs = await API.get('/music', { user_id: user.id })
+        pl = { type: 'virtual', name: 'All Songs' }
+        songs = allSongs
       } else {
-        if (state.playlistId === 'my-songs') {
-          const allSongs = await API.get('/music', { user_id: user.id })
-          pl = { type: 'virtual', name: 'My Songs' }
-          songs = allSongs.filter(m => m.added_by === user.id)
-        } else if (state.playlistId === 'all-songs') {
-          const allSongs = await API.get('/music', { user_id: user.id })
-          pl = { type: 'virtual', name: 'All Songs' }
-          songs = allSongs
-        } else {
-          const playlists = await API.get('/playlists', { user_id: user.id })
-          const found = playlists.find(p => p.id === parseInt(state.playlistId))
-          if (found) {
-            pl = found
-            const allMusic = await API.get('/music', { user_id: user.id })
-            songs = (found.songs || [])
-              .map(s => allMusic.find(m => m.id === s.music_id))
-              .filter(Boolean)
-          }
+        const playlists = await API.get('/playlists', { user_id: user.id })
+        const found = playlists.find(p => p.id === parseInt(state.playlistId))
+        if (found) {
+          pl = found
+          const allMusic = await API.get('/music', { user_id: user.id })
+          songs = (found.songs || [])
+            .map(s => allMusic.find(m => m.id === s.music_id))
+            .filter(Boolean)
         }
       }
 
@@ -249,16 +202,8 @@ export const useMusicStore = defineStore('music', () => {
 
       if (audio.value && currentIndex.value >= 0 && displaySongs.value[currentIndex.value]) {
         const song = displaySongs.value[currentIndex.value]
-        if (isLocalMode() && song.filename) {
-          const fileRecord = await LocalDB.getFile(`music_${song.filename}`)
-          if (fileRecord?.blob) {
-            audio.value.src = URL.createObjectURL(fileRecord.blob)
-          } else {
-            audio.value.src = `/api/music/${song.id}/file`
-          }
-        } else {
-          audio.value.src = `/api/music/${song.id}/file`
-        }
+        const url = await API.getMusicUrl(song)
+        audio.value.src = url || ''
         audio.value.load()
         audio.value.currentTime = state.currentTime || 0
         currentTime.value = state.currentTime || 0
@@ -346,41 +291,18 @@ export const useMusicStore = defineStore('music', () => {
     }
 
     currentIndex.value = index
-    
+
     const song = displaySongs.value[index]
     if (!song) return
     playing.value = true
 
-    if (isLocalMode()) {
-      if (audio.value && reloadAudio) {
-        currentTime.value = 0
-        const fileRecord = song.filename
-          ? await LocalDB.getFile(`music_${song.filename}`)
-          : null
-        if (fileRecord?.blob) {
-          const url = URL.createObjectURL(fileRecord.blob)
-          audio.value.src = url
-        } else {
-          audio.value.src = `/api/music/${song.id}/file`
-        }
-        audio.value.load()
-      }
-      audio.value.play().catch(() => {})
-      return
+    if (audio.value && reloadAudio) {
+      currentTime.value = 0
+      const url = await API.getMusicUrl(song)
+      audio.value.src = url || ''
+      audio.value.load()
     }
-
-    if (song.downloaded) {
-      ServiceWorker.sendCacheRule(`/api/music/${song.id}/file`, { ttl: Infinity, refetch: false })
-    }
-
-    if (audio.value) {
-      if (reloadAudio) {
-        currentTime.value = 0
-        audio.value.src = `/api/music/${song.id}/file`
-        audio.value.load()
-      }
-      audio.value.play().catch(() => {})
-    }
+    audio.value.play().catch(() => {})
 
     if (!song.downloaded) {
       try {

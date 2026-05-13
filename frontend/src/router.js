@@ -12,7 +12,7 @@ import ExportPage from './pages/ExportPage.vue'
 import ImportPage from './pages/ImportPage.vue'
 import SetupBackend from './pages/SetupBackend.vue'
 import SetupUser from './pages/SetupUser.vue'
-import { API, isLocalMode } from './api.js'
+import { isLocalMode } from './api.js'
 
 const routes = [
   { path: '/', name: 'home', component: AboutPage },

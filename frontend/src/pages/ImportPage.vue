@@ -2,8 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { API, isLocalMode, setLocalMode } from '../api.js'
-import { LocalDB } from '../localDb.js'
+import { API, setLocalMode } from '../api.js'
 
 const router = useRouter()
 
@@ -24,12 +23,9 @@ const doImport = async () => {
   result.value = ''
   summary.value = null
   try {
-    const data = await API.importData(file.value, true)
+    const data = await API.importData(file.value)
     summary.value = data.summary
-    const users = await LocalDB.getAll('users')
-    if (users.length > 0) {
-      localStorage.setItem('user', JSON.stringify(users[0]))
-    }
+    setLocalMode(true)
     result.value = 'Import completed successfully. You can now use HomeTube in local (offline) mode without the backend server. Navigate to browse your imported content.'
   } catch (e) {
     result.value = `Error: ${e.message}`
