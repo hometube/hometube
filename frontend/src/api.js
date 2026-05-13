@@ -70,6 +70,59 @@ async function fetchFromLocal(path, query) {
   throw new Error(`Local data not available for: ${path}`)
 }
 
+async function mutateLocal(path, method, body) {
+  const basePath = path.split('?')[0].replace(/\/+$/, '')
+
+  if (method === 'POST' && basePath === '/playlists') {
+    const all = await LocalDB.getAll('playlists')
+    const maxId = all.reduce((max, p) => Math.max(max, p.id || 0), 0)
+    const playlist = { id: maxId + 1, name: body.name, user_id: body.user_id, songs: [] }
+    await LocalDB.store('playlists', playlist)
+    return playlist
+  }
+
+  const addMatch = basePath.match(/^\/playlists\/(\d+)\/add$/)
+  if (addMatch && method === 'POST') {
+    const playlistId = parseInt(addMatch[1])
+    const playlist = await LocalDB.get('playlists', playlistId)
+    if (!playlist) throw new Error('Playlist not found')
+    const songs = playlist.songs || []
+    songs.push({ music_id: body.music_id, position: body.position || null })
+    playlist.songs = songs
+    await LocalDB.store('playlists', playlist)
+    return { ok: true }
+  }
+
+  const putMatch = basePath.match(/^\/playlists\/(\d+)$/)
+  if (putMatch && method === 'PUT') {
+    const playlistId = parseInt(putMatch[1])
+    const playlist = await LocalDB.get('playlists', playlistId)
+    if (!playlist) throw new Error('Playlist not found')
+    playlist.name = body.name
+    await LocalDB.store('playlists', playlist)
+    return playlist
+  }
+
+  const deleteMatch = basePath.match(/^\/playlists\/(\d+)$/)
+  if (deleteMatch && method === 'DELETE') {
+    await LocalDB.delete('playlists', parseInt(deleteMatch[1]))
+    return { ok: true }
+  }
+
+  const removeMatch = basePath.match(/^\/playlists\/(\d+)\/remove\/(\d+)$/)
+  if (removeMatch && method === 'DELETE') {
+    const playlistId = parseInt(removeMatch[1])
+    const musicId = parseInt(removeMatch[2])
+    const playlist = await LocalDB.get('playlists', playlistId)
+    if (!playlist) throw new Error('Playlist not found')
+    playlist.songs = (playlist.songs || []).filter(s => s.music_id !== musicId)
+    await LocalDB.store('playlists', playlist)
+    return { ok: true }
+  }
+
+  throw new Error(`Local mutation not supported for: ${method} ${path}`)
+}
+
 function getJWT() {
   return localStorage.getItem('jwt_token') || ''
 }
@@ -236,7 +289,11 @@ export const API = {
   },
 
   async post(path, body = {}) {
-    if (isLocalMode()) return { ok: true }
+    if (isLocalMode()) {
+      try {
+        return await mutateLocal(path, 'POST', body)
+      } catch { return { ok: true } }
+    }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -253,7 +310,11 @@ export const API = {
   },
 
   async put(path, body = {}) {
-    if (isLocalMode()) return { ok: true }
+    if (isLocalMode()) {
+      try {
+        return await mutateLocal(path, 'PUT', body)
+      } catch { return { ok: true } }
+    }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
@@ -270,7 +331,11 @@ export const API = {
   },
 
   async delete(path) {
-    if (isLocalMode()) return { ok: true }
+    if (isLocalMode()) {
+      try {
+        return await mutateLocal(path, 'DELETE', {})
+      } catch { return { ok: true } }
+    }
     await swReady
     const jwt = getJWT()
     const queryToken = getQueryToken()
