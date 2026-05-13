@@ -1,14 +1,20 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useUserStore } from '../stores/user.js'
 import { useMusicStore } from '../stores/music.js'
-import { API } from '../api.js'
+import { API, isLocalMode } from '../api.js'
 
 const router = useRouter()
 const userStore = useUserStore()
 const musicStore = useMusicStore()
+
+const visibleVirtualPlaylists = computed(() => {
+  const vps = musicStore.virtualPlaylists
+  if (isLocalMode()) return vps.filter(vp => vp.id === 'all-songs')
+  return vps
+})
 
 watch(() => userStore.user, (user) => {
   if (user) musicStore.load()
@@ -39,7 +45,7 @@ const deletePlaylist = async (e, pl) => {
     <div class="mb-4">
       <h2 class="text-xl font-bold mb-2">Playlists</h2>
       <div class="grid grid-cols-2 gap-2 mb-4">
-        <div v-for="vp in musicStore.virtualPlaylists" :key="vp.id" @click="openVirtual(vp)"
+        <div v-for="vp in visibleVirtualPlaylists" :key="vp.id" @click="openVirtual(vp)"
           class="bg-gray-800 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-700">
           <div class="font-medium">{{ vp.name }}</div>
           <div class="text-xs text-gray-400">{{ vp.songs.length }} songs</div>

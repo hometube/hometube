@@ -6,7 +6,9 @@ import {
   faEllipsisV, faMinus, faForwardStep,
   faDownload, faCheck, faCog,
   faMusic, faPencil, faUpload,
-  faSpinner, faFileArchive,
+  faSpinner, faFileArchive, faTrash,
+  faEye, faBackward, faPlay, faPause,
+  faForward, faRedo, faExclamationTriangle, faTimes,
 } from '@fortawesome/free-solid-svg-icons'
 
 library.add(
@@ -16,5 +18,7 @@ library.add(
   faEllipsisV, faMinus, faForwardStep,
   faDownload, faCheck, faCog,
   faMusic, faPencil, faUpload,
-  faSpinner, faFileArchive,
+  faSpinner, faFileArchive, faTrash,
+  faEye, faBackward, faPlay, faPause,
+  faForward, faRedo, faExclamationTriangle, faTimes,
 )

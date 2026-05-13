@@ -3,12 +3,9 @@ import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { library } from '@fortawesome/fontawesome-svg-core'
-import { faEye, faBackward, faPlay, faPause, faForward, faRedo } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useMusicStore } from '../stores/music.js'
 import WaveformVisual from './WaveformVisual.vue'
-
-library.add(faEye, faBackward, faPlay, faPause, faForward, faRedo)
 
 const router = useRouter()
 const route = useRoute()
@@ -23,6 +20,7 @@ const {
   repeat,
   currentTime,
   duration,
+  playbackError,
 } = storeToRefs(musicStore)
 
 const {
@@ -31,7 +29,8 @@ const {
   prev,
   toggleRepeat,
   isCurrentPlaylist,
-  cleanTitle
+  cleanTitle,
+  dismissError
 } = musicStore
 
 const onPlaylistPage = computed(() => {
@@ -50,6 +49,13 @@ const goToCurrentPlaylist = () => {
 <template>
   <WaveformVisual v-if="currentIndex > 0" :audioElement="audio" :playing="playing" :subtle="!onPlaylistPage" />
   <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-3 z-[90]">
+    <div v-if="playbackError" class="absolute bottom-full h-10 left-0 right-0 z-[100] bg-red-600 text-white text-sm px-4 py-2 rounded-t-lg flex justify-between items-center gap-2">
+      <FontAwesomeIcon :icon="['fas', 'exclamation-triangle']" />
+      <span>{{ playbackError }}</span>
+      <button @click="dismissError" class="ml-2 text-white/70 hover:text-white">
+        <FontAwesomeIcon :icon="['fas', 'times']" />
+      </button>
+    </div>
     <div class="absolute top-0 left-0 right-0">
       <div class="h-1 bg-gray-200" :style="{ width: `${(currentTime / duration) * 100}%` }"></div>
     </div>

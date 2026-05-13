@@ -5,7 +5,7 @@
     <div class="bg-gray-800 p-6 rounded-lg mb-8">
       <h2 class="text-2xl font-semibold mb-4 text-center">Step 2: Create User</h2>
       <p class="text-gray-300 mb-4 text-center">
-        Now that your backend is configured, create a user to personalize your HomeTube experience.
+        {{ localMode ? 'Create a user to personalize your HomeTube experience.' : 'Now that your backend is configured, create a user to personalize your HomeTube experience.' }}
       </p>
       
       <div v-if="backendUrlError" class="bg-red-900 text-red-200 p-4 mb-4 rounded-lg">
@@ -16,7 +16,7 @@
         User created successfully! You can now access HomeTube.
       </div>
       
-      <div v-if="users.length > 0 && !userCreated" class="mb-6">
+      <div v-if="!localMode && users.length > 0 && !userCreated" class="mb-6">
         <h3 class="text-lg mb-2">Existing Users</h3>
         <div v-for="u in users" :key="u.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 flex justify-between items-center">
           <span>{{ u.username }}</span>
@@ -36,12 +36,12 @@
       
        <div class="flex justify-between items-center">
          <button @click="saveUser" 
-                 :disabled="!username.value || !username.value.trim()"
+                 :disabled="!username || !username.trim()"
                  class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50">
            Create User
          </button>
         
-        <button @click="loadUsers" 
+        <button v-if="!localMode" @click="loadUsers" 
                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors">
           Refresh Users
         </button>
@@ -57,8 +57,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { API } from '../api.js'
+import { ref, onMounted, computed } from 'vue'
+import { API, isLocalMode } from '../api.js'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user.js'
 
@@ -68,6 +68,7 @@ const backendUrlError = ref('')
 const userCreated = ref(false)
 const router = useRouter()
 const userStore = useUserStore()
+const localMode = computed(() => isLocalMode())
 
 const loadUsers = async () => {
   try {
@@ -103,8 +104,9 @@ const selectExisting = (user) => {
   router.push('/')
 }
 
-// Load users on mount
-onMounted(loadUsers)
+onMounted(() => {
+  if (!localMode.value) loadUsers()
+})
 </script>
 
 <style scoped>

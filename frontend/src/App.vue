@@ -6,6 +6,7 @@ import { useUserStore } from './stores/user.js'
 import { useMusicStore } from './stores/music.js'
 import GlobalMusicPlayer from './components/GlobalMusicPlayer.vue'
 import BackendMenu from './components/BackendMenu.vue'
+import { isLocalMode } from './api.js'
 import './icons.js'
 
 const router = useRouter()
@@ -163,7 +164,7 @@ onUnmounted(() => {
           <button @click="navigate('export')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'download']" class="mr-2" /> Export Data
           </button>
-          <button @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+          <button v-if="!isLocalMode()" @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'upload']" class="mr-2" /> Import Data
           </button>
         </div>

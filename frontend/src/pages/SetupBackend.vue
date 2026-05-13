@@ -57,7 +57,7 @@
 
       <div v-if="mode === 'local'">
         <div class="mb-4">
-          <label class="text-sm text-gray-400 mb-2 block">Import .ht file (optional)</label>
+          <label class="text-sm text-gray-400 mb-2 block">Import .ht file (required)</label>
           <label class="block border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors">
             <input type="file" accept=".ht" @change="onFileChange" class="hidden" />
             <div class="text-sm text-gray-400">
@@ -69,16 +69,10 @@
           :class="importResult.startsWith('Error') ? 'text-red-400' : 'text-green-400'">
           {{ importResult }}
         </div>
-        <div class="flex gap-3">
-          <button @click="startLocalMode"
-                  class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors">
-            Start in Local Mode
-          </button>
-          <button v-if="importFile" @click="doImport"
-                  class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors">
-            Import & Start
-          </button>
-        </div>
+        <button @click="doImport" :disabled="!importFile"
+                class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold rounded-lg transition-colors">
+          Import & Start
+        </button>
       </div>
     </div>
 
@@ -163,11 +157,6 @@ const testConnection = async () => {
     backendUrlError.value = 'Failed to connect to backend. Please check the URL and try again.'
     backendSuccess.value = false
   }
-}
-
-const startLocalMode = () => {
-  setLocalMode(true)
-  router.push('/setup/user')
 }
 
 const doImport = async () => {

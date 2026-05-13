@@ -1,11 +1,11 @@
 # HomeTube
 
-A self-hosted YouTube media downloader with a mobile-friendly web interface. Download videos and music from YouTube for offline viewing/listening, subscribe to channels, and automatically detect new uploads.
+A self-hosted YouTube media downloader with a mobile-friendly web interface. Download videos and music from YouTube for offline viewing/listening, subscribe to channels, and automatically detect new uploads. Works in **server mode** (Python backend with SQLite) or **local mode** (fully offline in the browser via IndexedDB).
 
 ## Features
 
 - **Video Downloads** - Paste YouTube URLs to download MP4 files with selectable quality (1080p/720p/480p/best)
-- **Music Downloads** - Extract audio from videos/playlists as MP3 files, organize into playlists
+- **Music Downloads** - Extract audio from videos/playlists, preserve original format (mp3, webm, m4a, ogg, flac, wav), organize into playlists
 - **Import Existing Music** - Import songs from existing folders with automatic metadata extraction
 - **Channel Subscriptions** - Subscribe to channels and auto-detect new videos with keyword/length/quality filters
 - **Video Player** - In-app player with speed control (0.5x-2x), audio mode (screen-off listening), fullscreen
@@ -14,6 +14,10 @@ A self-hosted YouTube media downloader with a mobile-friendly web interface. Dow
 - **Auto-Cleanup** - Watched videos automatically deleted after 7 days (unless kept)
 - **Playlist Management** - Create playlists, add songs, shuffle/repeat playback
 - **Multi-User Support** - Multiple users with separate collections
+- **Server Mode** - Connect to a Python/FastAPI backend with SQLite storage, yt-dlp downloads, background scheduler
+- **Local Mode** - Fully offline operation in the browser via IndexedDB, no server needed
+- **Portable Data (.ht)** - Export/import your entire collection as `.ht` archive files to move between modes and instances
+- **CLI Export/Import** - Manage `.ht` archives from the terminal with `python cli.py export` / `python cli.py import`
 - **Progressive Web App** - Mobile-optimized, installable on phones, download files to device
 - **Automatic Scheduling** - Background service checks subscriptions every 60 seconds
 
@@ -115,6 +119,33 @@ secure access to your local backend via GitHub Pages.
 6. **Add Music**: Paste song/playlist URL, add to playlist, download to device
 7. **Playlist View**: Full player with album art, shuffle/repeat, song queue management
 
+### Server Mode vs Local Mode
+
+- **Server Mode** (default): Connect to a Python backend. Enter the backend URL on setup or paste one shared via `--dev` mode. All data is stored in SQLite on the server. Media downloads use yt-dlp.
+- **Local Mode**: Runs entirely in your browser using IndexedDB — no server needed. Import an `.ht` file on setup to populate your local collection. Media and metadata are stored client-side. Switch modes in Settings at any time.
+
+### Exporting and Importing Data (`.ht` files)
+
+Data can be transferred between modes and instances using `.ht` archive files:
+
+```bash
+# Export from server (CLI)
+cd backend
+python cli.py export -o backup.ht
+python cli.py export --user-id 1 -o backup.ht    # Export specific user
+
+# Import into server (CLI)
+python cli.py import backup.ht
+
+# Export from API
+curl -X POST http://localhost:8000/api/export -H "Authorization: Bearer <token>" -o backup.ht
+
+# Import via API
+curl -X POST http://localhost:8000/api/import -F "file=@backup.ht" -H "Authorization: Bearer <token>"
+```
+
+You can also export/import from the frontend UI in both modes.
+
 ### Import Existing Music Collection
 
 Import songs from an existing folder into HomeTube with automatic metadata extraction:
@@ -148,27 +179,40 @@ hometube/
 │   ├── main.py              # FastAPI app with REST endpoints
 │   ├── models.py            # DB models (User, Video, Music, Channel, Subscription, Playlist)
 │   ├── database.py          # SQLite configuration
-│   ├── import_music.py      # Utility to import existing music files
+│   ├── cli.py               # CLI for .ht export/import
+│   ├── import_music.py      # Import existing music files
 │   ├── requirements.txt     # Python dependencies
 │   └── services/
 │       ├── ytdlp.py         # yt-dlp wrapper for downloads
 │       └── scheduler.py     # Background subscription checker + auto-delete
 ├── frontend/
 │   ├── src/
-│   │   ├── App.vue         # Main Vue app with nav menu
-│   │   ├── api.js          # API client
+│   │   ├── App.vue         # Main Vue app with slide-out nav menu
+│   │   ├── api.js          # API proxy – delegates to active provider
+│   │   ├── localDb.js      # IndexedDB wrapper (local mode storage)
+│   │   ├── providers/
+│   │   │   ├── DataProvider.js    # Abstract provider interface
+│   │   │   ├── ServerProvider.js  # HTTP provider for server mode
+│   │   │   ├── LocalProvider.js   # IndexedDB provider for local mode
+│   │   │   └── index.js          # Provider factory (detect, build, switch)
 │   │   ├── pages/
 │   │   │   ├── UserPage.vue
-│   │   │   ├── VideoHome.vue    # Video feed + player
-│   │   │   ├── AddVideo.vue     # Add video by URL
-│   │   │   ├── AddChannel.vue   # Channel browser + subscribe
-│   │   │   ├── MusicHome.vue    # Playlists + songs
-│   │   │   ├── AddMusic.vue     # Add music by URL
-│   │   │   └── PlaylistView.vue # Music player with queue
+│   │   │   ├── SetupBackend.vue       # Initial mode selection
+│   │   │   ├── VideoHome.vue          # Video feed + player
+│   │   │   ├── AddVideo.vue           # Add video by URL
+│   │   │   ├── AddChannel.vue         # Channel browser + subscribe
+│   │   │   ├── MusicHome.vue          # Playlists + songs
+│   │   │   ├── AddMusic.vue           # Add music by URL
+│   │   │   ├── PlaylistView.vue       # Music player with queue
+│   │   │   ├── ExportPage.vue         # Export .ht files
+│   │   │   ├── ImportPage.vue         # Import .ht files
+│   │   │   └── SettingsPage.vue       # Mode toggle, settings
+│   │   ├── stores/
+│   │   ├── composables/
 │   │   └── style.css
 │   ├── package.json
 │   └── vite.config.js      # Vite + PWA config
 └── data/
     ├── db.sqlite            # SQLite database
-    └── downloads/          # Downloaded media files
+    └── downloads/           # Downloaded media files
 ```

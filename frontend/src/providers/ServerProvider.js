@@ -4,6 +4,7 @@ const BASE = import.meta.env.VITE_API_BASE || '/api'
 const BASE_HEADERS = { 'ngrok-skip-browser-warning': 'true' }
 
 let swReadyResolve = null
+let swReadyFlag = false
 const swReady = new Promise(resolve => {
   swReadyResolve = resolve
   if (!('serviceWorker' in navigator)) {
@@ -11,11 +12,11 @@ const swReady = new Promise(resolve => {
     return
   }
   if (navigator.serviceWorker.controller) {
-    ServiceWorkerInternal.ready = true
+    swReadyFlag = true
     setTimeout(resolve, 100)
   } else {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      ServiceWorkerInternal.ready = true
+      swReadyFlag = true
       setTimeout(resolve, 100)
     })
   }

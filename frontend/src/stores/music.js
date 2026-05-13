@@ -16,6 +16,7 @@ export const useMusicStore = defineStore('music', () => {
   const currentTime = ref(0)
   const duration = ref(0)
   const initialized = ref(false)
+  const playbackError = ref(null)
 
   const isOffline = computed(() => {
     const userStore = useUserStore()
@@ -203,7 +204,8 @@ export const useMusicStore = defineStore('music', () => {
       if (audio.value && currentIndex.value >= 0 && displaySongs.value[currentIndex.value]) {
         const song = displaySongs.value[currentIndex.value]
         const url = await API.getMusicUrl(song)
-        audio.value.src = url || ''
+        if (!url) return false
+        audio.value.src = url
         audio.value.load()
         audio.value.currentTime = state.currentTime || 0
         currentTime.value = state.currentTime || 0
@@ -240,6 +242,16 @@ export const useMusicStore = defineStore('music', () => {
     })
     audio.value.addEventListener('loadedmetadata', () => {
       duration.value = audio.value.duration
+      playbackError.value = null
+    })
+    audio.value.addEventListener('error', () => {
+      playing.value = false
+      currentTime.value = 0
+      duration.value = 0
+      playbackError.value = 'Failed to load song'
+    })
+    audio.value.addEventListener('play', () => {
+      playbackError.value = null
     })
     audio.value.addEventListener('timeupdate', () => {
       currentTime.value = audio.value.currentTime
@@ -299,7 +311,18 @@ export const useMusicStore = defineStore('music', () => {
     if (audio.value && reloadAudio) {
       currentTime.value = 0
       const url = await API.getMusicUrl(song)
-      audio.value.src = url || ''
+      if (!url) {
+        playing.value = false
+        duration.value = 0
+        playbackError.value = 'No file available for this song'
+        setTimeout(() => {
+          if (playbackError.value === 'No file available for this song') {
+            playbackError.value = null
+          }
+        }, 4000)
+        return
+      }
+      audio.value.src = url
       audio.value.load()
     }
     audio.value.play().catch(() => {})
@@ -409,6 +432,10 @@ export const useMusicStore = defineStore('music', () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const dismissError = () => {
+    playbackError.value = null
+  }
+
   const cleanTitle = (title) => {
     if (!title) return title
     return title.replace(/\s*\[[^\]]+\]\s*$/, '')
@@ -426,6 +453,7 @@ export const useMusicStore = defineStore('music', () => {
     currentTime,
     duration,
     initialized,
+    playbackError,
     currentSong,
     playlists,
     songs,
@@ -455,6 +483,7 @@ export const useMusicStore = defineStore('music', () => {
     isCurrentPlaylist,
     stop,
     formatTime,
-    cleanTitle
+    cleanTitle,
+    dismissError
   }
 })

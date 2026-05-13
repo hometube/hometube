@@ -86,7 +86,23 @@ export class LocalProvider extends DataProvider {
         data = data.filter(r => r.added_by === uid || r.user_id === uid)
       }
       if (match.store === 'videos' || match.store === 'music') {
-        data = data.map(d => ({ ...d, downloaded: true }))
+        const files = await LocalDB.getFilesByType(match.store)
+        const fileIds = new Set(files.map(f => f.id))
+        data = data.map(d => {
+          let exists = false
+          if (match.store === 'music') {
+            if (d.filename) exists = fileIds.has(`music_${d.filename}`)
+            if (!exists && d.video_id) {
+              for (const ext of ['mp3', 'webm', 'm4a', 'ogg', 'flac', 'wav']) {
+                if (fileIds.has(`music_${d.video_id}.${ext}`)) { exists = true; break }
+              }
+            }
+          } else {
+            const vid = d.video_id ? String(d.video_id) : String(d.id)
+            exists = fileIds.has(`video_${vid}.mp4`) || fileIds.has(`video_${vid}.webm`)
+          }
+          return { ...d, downloaded: exists }
+        })
       }
       return data
     }
@@ -228,12 +244,48 @@ export class LocalProvider extends DataProvider {
         return this._trackBlobUrl(URL.createObjectURL(fileRecord.blob))
       }
     }
+    if (song.video_id) {
+      for (const ext of ['mp3', 'webm', 'm4a', 'ogg', 'flac', 'wav']) {
+        const fileRecord = await LocalDB.getFile(`music_${song.video_id}.${ext}`)
+        if (fileRecord?.blob) {
+          return this._trackBlobUrl(URL.createObjectURL(fileRecord.blob))
+        }
+      }
+    }
     return null
   }
 
   async checkCache(paths) {
     const status = {}
-    paths.forEach(path => { status[path] = true })
+    const allMusicFiles = await LocalDB.getFilesByType('music')
+    const fileIds = new Set(allMusicFiles.map(f => f.id))
+    const allMusicRecords = await this._getAll('music')
+    for (const path of paths) {
+      const match = path.match(/\/api\/music\/(\d+)\/file/)
+      if (match) {
+        const musicId = parseInt(match[1])
+        const musicRecord = allMusicRecords.find(m => m.id === musicId)
+        if (musicRecord) {
+          let exists = false
+          if (musicRecord.filename) {
+            exists = fileIds.has(`music_${musicRecord.filename}`)
+          }
+          if (!exists && musicRecord.video_id) {
+            for (const ext of ['mp3', 'webm', 'm4a', 'ogg', 'flac', 'wav']) {
+              if (fileIds.has(`music_${musicRecord.video_id}.${ext}`)) {
+                exists = true
+                break
+              }
+            }
+          }
+          status[path] = exists
+        } else {
+          status[path] = false
+        }
+      } else {
+        status[path] = true
+      }
+    }
     return status
   }
 
