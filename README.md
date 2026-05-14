@@ -168,6 +168,8 @@ ht export --week -o week.ht     # Last 7 days only
 ht export --month -o month.ht   # Last 30 days only
 ht export --day -o day.ht       # Last 24 hours only
 ht import backup.ht             # Import .ht file
+ht import --music ~/Music       # Import music files from folder
+ht import --music ~/Music -p "Favorites" --move  # Import + playlist + move
 ```
 
 Data can also be transferred via the frontend UI in both modes.

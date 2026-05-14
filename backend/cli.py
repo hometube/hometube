@@ -8,7 +8,8 @@ Usage:
   ht login <user>         Switch active user (creates if not exists)
   ht download <url>       Download video/music/playlist
   ht export               Export .ht file for active user
-  ht import <file.ht>     Import .ht file
+  ht import <file.ht>        Import .ht archive
+  ht import --music <folder>  Import music files from local folder
   ht songs                List music for active user
   ht playlists            List playlists for active user
   ht videos               List videos for active user
@@ -21,6 +22,7 @@ import sys
 import zipfile
 import io
 import re
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -413,9 +415,94 @@ def cmd_export(args):
         db.close()
 
 
+def cmd_import_music(args):
+    """Import music files from a local folder."""
+    folder = args.file or args.music
+    if not folder or not os.path.isdir(folder):
+        print(f"Error: folder not found: {folder}", file=sys.stderr)
+        sys.exit(1)
+
+    db = get_db()
+    try:
+        from models import User, Music, Playlist
+
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+
+        from import_music import extract_metadata
+
+        # Resolve playlist by name
+        playlist = None
+        if args.playlist:
+            playlist = db.query(Playlist).filter(Playlist.name == args.playlist, Playlist.user_id == user.id).first()
+            if not playlist:
+                playlist = Playlist(name=args.playlist, user_id=user.id)
+                db.add(playlist)
+                db.flush()
+                print(f"Created playlist: {playlist.name}")
+
+        setup_paths()
+
+        SUPPORTED = {'.mp3', '.webm', '.flac', '.wav', '.m4a', '.ogg', '.aac'}
+        existing_files = set(os.listdir(os.path.join(DL_DIR, "music")))
+        imported = 0
+
+        for root, _dirs, files in os.walk(folder):
+            for fname in files:
+                ext = Path(fname).suffix.lower()
+                if ext not in SUPPORTED:
+                    continue
+                fpath = os.path.join(root, fname)
+
+                meta = extract_metadata(fpath)
+
+                dest = f"{meta['artist']} - {meta['title']}{ext}".replace("/", "-").replace("\\", "-")
+                counter = 0
+                orig = dest
+                while dest in existing_files:
+                    counter += 1
+                    dest = f"{Path(orig).stem} ({counter}){ext}"
+                existing_files.add(dest)
+
+                dest_path = os.path.join(DL_DIR, "music", dest)
+                if args.move:
+                    shutil.move(fpath, dest_path)
+                else:
+                    shutil.copy2(fpath, dest_path)
+
+                music = Music(
+                    url=f"file://{dest}",
+                    title=meta["title"],
+                    artist=meta["artist"],
+                    video_id=meta.get("video_id"),
+                    filename=dest,
+                    downloaded=True,
+                    added_by=user.id,
+                )
+                db.add(music)
+                db.flush()
+
+                if playlist:
+                    songs = playlist.songs or []
+                    songs.append({"music_id": music.id, "position": len(songs)})
+                    playlist.songs = songs
+
+                imported += 1
+                print(f"  Imported: {meta['title']} by {meta['artist']}")
+
+        db.commit()
+        print(f"\nImported {imported} song(s).")
+        if playlist:
+            print(f"  Added to playlist: {playlist.name}")
+    finally:
+        db.close()
+
+
 def cmd_import(args):
-    """Import .ht file."""
-    if not os.path.isfile(args.file):
+    """Import .ht archive."""
+    if not args.file or not os.path.isfile(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
         sys.exit(1)
     if not args.file.endswith(".ht"):
@@ -684,8 +771,11 @@ def main():
     export_p.add_argument("--week", action="store_true", help="Last 7 days only")
     export_p.add_argument("--month", action="store_true", help="Last 30 days only")
 
-    import_p = sub.add_parser("import", help="Import .ht file")
-    import_p.add_argument("file", help="Path to .ht file")
+    import_p = sub.add_parser("import", help="Import .ht archive or music files from a folder")
+    import_p.add_argument("file", nargs="?", help="Path to .ht file or music folder (with --music)")
+    import_p.add_argument("--music", "-m", help="Import music files from a folder")
+    import_p.add_argument("--playlist", "-p", help="Playlist name to add imported music to")
+    import_p.add_argument("--move", action="store_true", help="Move files instead of copying (music import)")
 
     sub.add_parser("songs", help="List music for active user")
 
@@ -698,6 +788,11 @@ def main():
     # Handle --no-download override
     if hasattr(args, "no_download") and args.no_download:
         args.download = False
+
+    # Route import: --music flag triggers music folder import; otherwise .ht archive
+    if args.command == "import" and args.music:
+        cmd_import_music(args)
+        return
 
     cmds = {
         "install": cmd_install,
