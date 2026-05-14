@@ -113,6 +113,18 @@ def print_table(rows, headers):
 # Commands
 # ---------------------------------------------------------------------------
 
+def check_ytdlp():
+    """Check if yt-dlp is installed and warn if not."""
+    if not shutil.which("yt-dlp"):
+        print("Warning: yt-dlp not found. Install it with:")
+        print("  brew install yt-dlp          # macOS")
+        print("  sudo apt install yt-dlp      # Linux")
+        print("  pip install yt-dlp           # pip")
+        print()
+        return False
+    return True
+
+
 def cmd_install(args):
     """Create the ht wrapper script in ~/.local/bin."""
     cli_path = os.path.abspath(__file__)
@@ -124,10 +136,13 @@ def cmd_install(args):
     venv_dir = os.environ.get("VIRTUAL_ENV")
     if venv_dir:
         python_path = os.path.join(venv_dir, "bin", "python3")
+        path_setup = f'PATH="{os.path.join(venv_dir, "bin")}:$PATH"'
     else:
         python_path = "python3"
+        path_setup = ""
 
     ht_path.write_text(f"""#!/bin/sh
+{path_setup}
 exec "{python_path}" "{cli_path}" "$@"
 """)
     ht_path.chmod(0o755)
@@ -136,6 +151,8 @@ exec "{python_path}" "{cli_path}" "$@"
         print(f"  Uses venv Python: {python_path}")
     print(f"Make sure {bin_dir} is in your PATH:")
     print(f"  export PATH=\"$PATH:{bin_dir}\"")
+    print()
+    check_ytdlp()
 
 
 def cmd_init(args):
@@ -213,6 +230,9 @@ def clean_title(title):
 
 def cmd_download(args):
     """Download video/music/playlist from a URL."""
+    if not check_ytdlp():
+        sys.exit(1)
+
     db = get_db()
     try:
         from models import User, Video, Music, Playlist
