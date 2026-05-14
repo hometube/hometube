@@ -14,8 +14,9 @@ const channelVideos = ref([])
 const selectedVideos = ref([])
 const channelId = ref(null)
 const loading = ref(false)
-const quality = ref('best')
-const subCriteria = ref({ keywords: '', min_length: null, max_length: null, quality: 'best' })
+const settings = JSON.parse(localStorage.getItem('settings') || '{}')
+const quality = ref(settings.defaultSubQuality || 'best')
+const subCriteria = ref({ keywords: '', min_length: null, max_length: null, quality: settings.defaultSubQuality || 'best' })
 
 const loadChannelVideos = async () => {
   if (!url.value) return

@@ -131,11 +131,11 @@ onUnmounted(() => {
             class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Video Home
           </button>
-          <button @click="navigate('video', 'add')"
+          <button v-if="!isLocalMode()" @click="navigate('video', 'add')"
             class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Video
           </button>
-          <button @click="navigate('video', 'channel')"
+          <button v-if="!isLocalMode()" @click="navigate('video', 'channel')"
             class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'tv']" class="mr-2" /> Add Channel
           </button>
@@ -147,7 +147,7 @@ onUnmounted(() => {
             class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Music Home
           </button>
-          <button @click="navigate('music', 'add')"
+          <button v-if="!isLocalMode()" @click="navigate('music', 'add')"
             class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Music
           </button>
@@ -164,7 +164,7 @@ onUnmounted(() => {
           <button @click="navigate('export')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'download']" class="mr-2" /> Export Data
           </button>
-          <button v-if="!isLocalMode()" @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+          <button @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
             <FontAwesomeIcon :icon="['fas', 'upload']" class="mr-2" /> Import Data
           </button>
         </div>

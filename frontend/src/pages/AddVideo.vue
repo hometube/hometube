@@ -9,7 +9,8 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const url = ref('')
-const quality = ref('best')
+const settings = JSON.parse(localStorage.getItem('settings') || '{}')
+const quality = ref(settings.defaultVideoQuality || 'best')
 const qualities = [
   { id: 'best', label: 'Best' },
   { id: 'best[height<=1080]', label: '1080p' },
@@ -28,12 +29,15 @@ const add = async () => {
   if (!url.value || !userStore.user) return
   loading.value = true
   await API.post('/videos/add', { url: url.value, user_id: userStore.user.id, quality: quality.value })
-  const videos = await API.get('/videos', { user_id: userStore.user.id })
-  const newVid = videos[0]
-  if (newVid && !newVid.downloaded) {
-    await API.post(`/videos/${newVid.id}/download`, { quality: quality.value })
-    if (confirm('Download complete! Save to device?')) {
-      API.downloadFile(`/api/files/videos/${newVid.video_id}.mp4`, `${newVid.title}.mp4`)
+  const s = JSON.parse(localStorage.getItem('settings') || '{}')
+  if (s.autoDownloadVideo !== false) {
+    const videos = await API.get('/videos', { user_id: userStore.user.id })
+    const newVid = videos[0]
+    if (newVid && !newVid.downloaded) {
+      await API.post(`/videos/${newVid.id}/download`, { quality: quality.value })
+      if (confirm('Download complete! Save to device?')) {
+        API.downloadFile(`/api/files/videos/${newVid.video_id}.mp4`, `${newVid.title}.mp4`)
+      }
     }
   }
   url.value = ''

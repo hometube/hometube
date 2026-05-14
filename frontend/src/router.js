@@ -79,6 +79,11 @@ router.beforeEach((to, from, next) => {
       next('/setup/user')
       return
     }
+    // Block add pages in local mode (no backend to download from URLs)
+    if (localMode && (to.path === '/video/add' || to.path === '/video/channel' || to.path === '/music/add')) {
+      next('/import')
+      return
+    }
   }
 
   next()

@@ -5,7 +5,8 @@ import { useUserStore } from './user.js'
 
 export const useVideoStore = defineStore('video', () => {
   const videos = ref([])
-  const currentFilter = ref('my-feed')
+  const loadSettings = () => { try { return JSON.parse(localStorage.getItem('settings') || '{}') } catch { return {} } }
+  const currentFilter = ref(loadSettings().defaultVideoFilter || 'my-feed')
   const playingVideo = ref(null)
   const audioMode = ref(false)
   const wakeLock = ref(null)

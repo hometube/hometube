@@ -8,7 +8,26 @@ const router = useRouter()
 
 const defaultSettings = {
   downloadOnPlay: true,
+  defaultVideoQuality: 'best',
+  defaultVideoFilter: 'my-feed',
+  autoDownloadVideo: true,
+  defaultShuffle: false,
+  defaultRepeat: false,
+  defaultSubQuality: 'best',
 }
+
+const qualityOptions = [
+  { id: 'best', label: 'Best' },
+  { id: 'best[height<=1080]', label: '1080p' },
+  { id: 'best[height<=720]', label: '720p' },
+  { id: 'best[height<=480]', label: '480p' }
+]
+
+const filterOptions = [
+  { id: 'my-feed', label: 'My Feed' },
+  { id: 'all', label: 'All Videos' },
+  { id: 'unwatched', label: 'Unwatched' }
+]
 
 function loadSettings() {
   try {
@@ -42,6 +61,18 @@ const switchMode = () => {
   }
   window.location.reload()
 }
+
+const resetApp = () => {
+  if (!confirm('This will clear all local data, including settings and IndexedDB data. Are you sure?')) return
+  if (!confirm('Really reset? All your data will be lost!')) return
+  localStorage.clear()
+  if (window.indexedDB) {
+    window.indexedDB.databases().then(dbs => {
+      dbs.forEach(db => { if (db.name) window.indexedDB.deleteDatabase(db.name) })
+    })
+  }
+  window.location.reload()
+}
 </script>
 
 <template>
@@ -71,7 +102,7 @@ const switchMode = () => {
       </div>
     </div>
 
-    <div class="mb-4">
+    <div v-if="!isLocalMode()" class="mb-4">
       <div class="text-xs text-gray-500 uppercase mb-2">Music</div>
       <div class="bg-gray-800 rounded-lg">
         <div class="flex items-center justify-between p-4">
@@ -86,6 +117,104 @@ const switchMode = () => {
               :class="settings.downloadOnPlay ? 'translate-x-6' : 'translate-x-0.5'" />
           </button>
         </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">Video</div>
+      <div class="bg-gray-800 rounded-lg divide-y divide-gray-700">
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Default Quality</div>
+            <div class="text-xs text-gray-400">Quality pre-selected when adding a video</div>
+          </div>
+          <select v-model="settings.defaultVideoQuality"
+            class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+            <option v-for="o in qualityOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Default Filter</div>
+            <div class="text-xs text-gray-400">Default video feed filter</div>
+          </div>
+          <select v-model="settings.defaultVideoFilter"
+            class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+            <option v-for="o in filterOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Auto-Download Videos</div>
+            <div class="text-xs text-gray-400">Automatically download after adding a video</div>
+          </div>
+          <button @click="toggle('autoDownloadVideo')"
+            class="relative w-12 h-6 rounded-full transition-colors"
+            :class="settings.autoDownloadVideo ? 'bg-blue-500' : 'bg-gray-600'">
+            <div class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+              :class="settings.autoDownloadVideo ? 'translate-x-6' : 'translate-x-0.5'" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">Music</div>
+      <div class="bg-gray-800 rounded-lg divide-y divide-gray-700">
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Default Shuffle</div>
+            <div class="text-xs text-gray-400">Shuffle enabled by default when opening a playlist</div>
+          </div>
+          <button @click="toggle('defaultShuffle')"
+            class="relative w-12 h-6 rounded-full transition-colors"
+            :class="settings.defaultShuffle ? 'bg-blue-500' : 'bg-gray-600'">
+            <div class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+              :class="settings.defaultShuffle ? 'translate-x-6' : 'translate-x-0.5'" />
+          </button>
+        </div>
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Default Repeat</div>
+            <div class="text-xs text-gray-400">Repeat enabled by default when opening a playlist</div>
+          </div>
+          <button @click="toggle('defaultRepeat')"
+            class="relative w-12 h-6 rounded-full transition-colors"
+            :class="settings.defaultRepeat ? 'bg-blue-500' : 'bg-gray-600'">
+            <div class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+              :class="settings.defaultRepeat ? 'translate-x-6' : 'translate-x-0.5'" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">Subscriptions</div>
+      <div class="bg-gray-800 rounded-lg">
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Default Quality</div>
+            <div class="text-xs text-gray-400">Quality used for subscription downloads</div>
+          </div>
+          <select v-model="settings.defaultSubQuality"
+            class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+            <option v-for="o in qualityOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">App</div>
+      <div class="bg-gray-800 rounded-lg">
+        <button @click="resetApp"
+          class="w-full flex items-center justify-between p-4 hover:bg-gray-750 rounded-lg">
+          <div>
+            <div class="text-sm font-medium text-red-400">Reset App</div>
+            <div class="text-xs text-gray-400">Clear all local data and restore defaults</div>
+          </div>
+          <FontAwesomeIcon :icon="['fas', 'trash']" class="text-red-400" />
+        </button>
       </div>
     </div>
   </div>

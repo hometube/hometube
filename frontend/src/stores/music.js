@@ -304,9 +304,12 @@ export const useMusicStore = defineStore('music', () => {
     })
   }
 
+  const loadSettings = () => { try { return JSON.parse(localStorage.getItem('settings') || '{}') } catch { return {} } }
+
   const loadPlaylistSongs = (songs, pl, plId) => {
     const wasPlaying = playing.value && currentIndex.value >= 0
     const currentSongId = wasPlaying ? displaySongs.value[currentIndex.value]?.id : null
+    const s = loadSettings()
 
     currentIndex.value = -1
     playlist.value = pl
@@ -316,7 +319,8 @@ export const useMusicStore = defineStore('music', () => {
       ...s,
       downloaded: downloadedCache.value[s.id] || false
     }))
-    shuffled.value = JSON.parse(localStorage.getItem(`playlist_${plId}_shuffled`) || 'false')
+    shuffled.value = JSON.parse(localStorage.getItem(`playlist_${plId}_shuffled`) || String(!!s.defaultShuffle))
+    repeat.value = !!s.defaultRepeat
 
     if (shuffled.value) {
       shuffleOrder()
