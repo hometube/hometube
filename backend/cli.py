@@ -372,6 +372,32 @@ def cmd_download(args):
         db.close()
 
 
+def cmd_update(args):
+    """Pull latest from git and install dependencies."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if not os.path.isdir(os.path.join(repo_root, ".git")):
+        print("Error: not a git repository — can't update", file=sys.stderr)
+        sys.exit(1)
+
+    print("Pulling latest from git...")
+    result = subprocess.run(["git", "pull"], cwd=repo_root)
+    if result.returncode != 0:
+        print("Error: git pull failed", file=sys.stderr)
+        sys.exit(1)
+
+    req_file = os.path.join(repo_root, "backend", "requirements.txt")
+    if os.path.exists(req_file):
+        print("Installing Python dependencies...")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", req_file],
+        )
+        if result.returncode != 0:
+            print("Error: pip install failed", file=sys.stderr)
+            sys.exit(1)
+
+    print("Update complete.")
+
+
 def cmd_export(args):
     """Export .ht file for the active user."""
     db = get_db()
@@ -813,6 +839,8 @@ def main():
 
     sub.add_parser("videos", help="List videos for active user")
 
+    sub.add_parser("update", help="Pull latest from git and install dependencies")
+
     args = parser.parse_args()
 
     # Handle --no-download override
@@ -834,6 +862,7 @@ def main():
         "songs": cmd_songs,
         "playlists": cmd_playlists,
         "videos": cmd_videos,
+        "update": cmd_update,
     }
 
     cmds[args.command](args)
