@@ -48,21 +48,45 @@ export const useVideoStore = defineStore('video', () => {
     load()
   }
 
-  const toggleAudioMode = async () => {
-    audioMode.value = !audioMode.value
-    if (audioMode.value && 'wakeLock' in navigator) {
+  const releaseWakeLock = () => {
+    if (wakeLock.value) {
+      try { wakeLock.value.release() } catch {}
+      wakeLock.value = null
+    }
+  }
+
+  const acquireWakeLock = async () => {
+    if ('wakeLock' in navigator && !wakeLock.value) {
       try {
         wakeLock.value = await navigator.wakeLock.request('screen')
-      } catch (e) {}
-    } else if (!audioMode.value && wakeLock.value) {
-      wakeLock.value.release()
-      wakeLock.value = null
+        wakeLock.value.addEventListener('release', () => {
+          wakeLock.value = null
+          if (audioMode.value) acquireWakeLock()
+        })
+      } catch {}
+    }
+  }
+
+  const toggleAudioMode = async () => {
+    audioMode.value = !audioMode.value
+    if (audioMode.value) {
+      acquireWakeLock()
+    } else {
+      releaseWakeLock()
     }
   }
 
   const toggleKeep = async (vid) => {
     await API.post(`/videos/${vid.id}/keep`, { keep: !vid.keep_flag })
     load()
+  }
+
+  if (typeof window !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && audioMode.value) {
+        acquireWakeLock()
+      }
+    })
   }
 
   return {

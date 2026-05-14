@@ -18,6 +18,28 @@ export const useMusicStore = defineStore('music', () => {
   const initialized = ref(false)
   const playbackError = ref(null)
 
+  const updateMediaSession = (song) => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: song.title || 'Unknown',
+      artist: song.artist || 'Unknown',
+      album: playlist.value?.name || '',
+      artwork: song.album_art
+        ? [{ src: song.album_art, sizes: '512x512', type: 'image/jpeg' }]
+        : []
+    })
+  }
+
+  const updatePositionState = () => {
+    if ('mediaSession' in navigator && duration.value > 0) {
+      navigator.mediaSession.setPositionState({
+        duration: duration.value,
+        playbackRate: 1,
+        position: currentTime.value
+      })
+    }
+  }
+
   const isOffline = computed(() => {
     const userStore = useUserStore()
     return userStore.checked && !userStore.online
@@ -219,6 +241,7 @@ export const useMusicStore = defineStore('music', () => {
         if (state.playing) {
           audio.value.play().catch(() => {})
           playing.value = true
+          updateMediaSession(song)
         }
       }
 
@@ -236,6 +259,22 @@ export const useMusicStore = defineStore('music', () => {
 
     window.addEventListener('beforeunload', saveState)
 
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (!playing.value) togglePlay()
+      })
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (playing.value) togglePlay()
+      })
+      navigator.mediaSession.setActionHandler('nexttrack', () => next())
+      navigator.mediaSession.setActionHandler('previoustrack', () => prev())
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime && audio.value) {
+          audio.value.currentTime = details.seekTime
+        }
+      })
+    }
+
     audio.value.addEventListener('ended', () => {
       const idx = findNextIndex(true)
       if (idx >= 0) {
@@ -248,6 +287,7 @@ export const useMusicStore = defineStore('music', () => {
     audio.value.addEventListener('loadedmetadata', () => {
       duration.value = audio.value.duration
       playbackError.value = null
+      updatePositionState()
     })
     audio.value.addEventListener('error', () => {
       playing.value = false
@@ -260,6 +300,7 @@ export const useMusicStore = defineStore('music', () => {
     })
     audio.value.addEventListener('timeupdate', () => {
       currentTime.value = audio.value.currentTime
+      updatePositionState()
     })
   }
 
@@ -334,6 +375,8 @@ export const useMusicStore = defineStore('music', () => {
       audio.value.load()
     }
     audio.value.play().catch(() => {})
+
+    updateMediaSession(song)
 
     if (!song.downloaded) {
       try {
