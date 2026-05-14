@@ -163,6 +163,7 @@ const doImport = async () => {
   if (!importFile.value) return
   importResult.value = ''
   try {
+    setLocalMode(true)
     const data = await API.importData(importFile.value)
     if (data.summary) {
       const parts = []
@@ -171,7 +172,6 @@ const doImport = async () => {
       }
       importResult.value = `Imported: ${parts.join(', ')}`
     }
-    setLocalMode(true)
     setTimeout(() => router.push('/setup/user'), 1500)
   } catch (e) {
     importResult.value = `Error: ${e.message}`
