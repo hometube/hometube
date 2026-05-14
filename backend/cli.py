@@ -244,7 +244,15 @@ def cmd_download(args):
             sys.exit(1)
 
         print(f"Fetching info for: {args.url}")
-        info = ytdlp.get_music_info(args.url)
+        import subprocess
+        try:
+            info = ytdlp.get_music_info(args.url)
+        except subprocess.TimeoutExpired as e:
+            err = (e.stderr or "").strip()
+            print("Error: yt-dlp timed out (120s).", file=sys.stderr)
+            if err:
+                print(f"  yt-dlp output: {err}", file=sys.stderr)
+            sys.exit(1)
         if not info:
             print("Error: Could not fetch URL info", file=sys.stderr)
             sys.exit(1)
@@ -257,7 +265,8 @@ def cmd_download(args):
                 print("Error: Empty playlist", file=sys.stderr)
                 sys.exit(1)
 
-            content_type = args.type or ("music" if entries[0].get("artist") or entries[0].get("album") or entries[0].get("track") else "video")
+            is_ytmusic = "music.youtube.com" in args.url
+            content_type = args.type or ("music" if is_ytmusic or entries[0].get("artist") or entries[0].get("album") or entries[0].get("track") else "video")
 
             if content_type == "video":
                 print(f"Adding {len(entries)} videos...")
@@ -316,7 +325,8 @@ def cmd_download(args):
                 db.commit()
                 print(f"\nDownloaded {len(entries)} tracks to '{playlist.name}'.")
         else:
-            content_type = args.type or ("music" if info.get("artist") or info.get("album") or info.get("track") else "video")
+            is_ytmusic = "music.youtube.com" in args.url
+            content_type = args.type or ("music" if is_ytmusic or info.get("artist") or info.get("album") or info.get("track") else "video")
 
             if content_type == "video":
                 existing = db.query(Video).filter(Video.video_id == info.get("id")).first()

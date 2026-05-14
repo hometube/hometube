@@ -2,9 +2,9 @@ import subprocess, json, os, re
 
 DL_DIR = os.environ.get("DL_DIR", "data/downloads")
 
-def run_ytdlp(args, capture=True):
+def run_ytdlp(args, capture=True, timeout=120):
     cmd = ["yt-dlp", "--no-warnings"] + args
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=capture, text=True, timeout=timeout)
     return result.stdout if capture else result
 
 def get_video_info(url):
@@ -50,7 +50,7 @@ def get_channel_videos(url):
     return videos
 
 def get_music_info(url):
-    out = run_ytdlp(["--dump-single-json", url])
+    out = run_ytdlp(["--flat-playlist", "--dump-single-json", url])
     try:
         return json.loads(out)
     except:
