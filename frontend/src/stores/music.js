@@ -204,7 +204,12 @@ export const useMusicStore = defineStore('music', () => {
       if (audio.value && currentIndex.value >= 0 && displaySongs.value[currentIndex.value]) {
         const song = displaySongs.value[currentIndex.value]
         const url = await API.getMusicUrl(song)
-        if (!url) return false
+        if (!url) {
+          console.warn('[MusicStore] restoreState: no URL for saved song', {
+            songId: song.id, title: song.title, filename: song.filename, video_id: song.video_id
+          })
+          return false
+        }
         audio.value.src = url
         audio.value.load()
         audio.value.currentTime = state.currentTime || 0
@@ -314,12 +319,15 @@ export const useMusicStore = defineStore('music', () => {
       if (!url) {
         playing.value = false
         duration.value = 0
-        playbackError.value = 'No file available for this song'
-        setTimeout(() => {
-          if (playbackError.value === 'No file available for this song') {
-            playbackError.value = null
-          }
-        }, 4000)
+        const reason = !song.filename && !song.video_id
+          ? 'missing filename and video_id'
+          : 'no matching file blob in local storage'
+        playbackError.value = `Cannot play "${song.title || 'Unknown'}": ${reason}`
+        console.warn('[MusicStore] playSong: no URL available for song', {
+          songId: song.id, title: song.title, artist: song.artist,
+          filename: song.filename, video_id: song.video_id,
+          downloaded: song.downloaded, reason
+        })
         return
       }
       audio.value.src = url

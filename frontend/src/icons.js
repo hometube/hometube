@@ -8,7 +8,7 @@ import {
   faMusic, faPencil, faUpload,
   faSpinner, faFileArchive, faTrash,
   faEye, faBackward, faPlay, faPause,
-  faForward, faRedo, faExclamationTriangle, faTimes,
+  faForward, faRedo, faExclamationTriangle,
 } from '@fortawesome/free-solid-svg-icons'
 
 library.add(
@@ -20,5 +20,5 @@ library.add(
   faMusic, faPencil, faUpload,
   faSpinner, faFileArchive, faTrash,
   faEye, faBackward, faPlay, faPause,
-  faForward, faRedo, faExclamationTriangle, faTimes,
+  faForward, faRedo, faExclamationTriangle,
 )

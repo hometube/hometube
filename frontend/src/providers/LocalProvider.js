@@ -239,19 +239,41 @@ export class LocalProvider extends DataProvider {
 
   async getMusicUrl(song) {
     if (song.filename) {
-      const fileRecord = await LocalDB.getFile(`music_${song.filename}`)
+      const key = `music_${song.filename}`
+      const fileRecord = await LocalDB.getFile(key)
       if (fileRecord?.blob) {
         return this._trackBlobUrl(URL.createObjectURL(fileRecord.blob))
       }
+      console.warn('[LocalProvider] getMusicUrl: filename exists but file not found', {
+        songId: song.id, title: song.title, filename: song.filename, key,
+        fileRecord: fileRecord ? 'found (no blob)' : 'not found in files store'
+      })
     }
     if (song.video_id) {
       for (const ext of ['mp3', 'webm', 'm4a', 'ogg', 'flac', 'wav']) {
-        const fileRecord = await LocalDB.getFile(`music_${song.video_id}.${ext}`)
+        const key = `music_${song.video_id}.${ext}`
+        const fileRecord = await LocalDB.getFile(key)
         if (fileRecord?.blob) {
           return this._trackBlobUrl(URL.createObjectURL(fileRecord.blob))
         }
       }
     }
+    if (song.title) {
+      const fileRecord = await LocalDB.getFileByTitle(song.title)
+      if (fileRecord?.blob) {
+        return this._trackBlobUrl(URL.createObjectURL(fileRecord.blob))
+      }
+    }
+    console.warn('[LocalProvider] getMusicUrl: returning null — no matching file blob', {
+      songId: song.id,
+      title: song.title,
+      artist: song.artist,
+      hasFilename: !!song.filename,
+      hasVideoId: !!song.video_id,
+      filename: song.filename,
+      video_id: song.video_id,
+      downloaded: song.downloaded
+    })
     return null
   }
 
@@ -287,6 +309,10 @@ export class LocalProvider extends DataProvider {
       }
     }
     return status
+  }
+
+  cache(path, options) {
+    console.warn('[LocalProvider] cache() is not supported in local mode — no backend to fetch from', { path, options })
   }
 
   async exportData(body = {}) {

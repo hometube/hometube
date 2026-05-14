@@ -10,7 +10,7 @@ hometube/
 │   ├── main.py              # FastAPI app with REST endpoints
 │   ├── models.py            # DB models (User, Video, Music, Channel, Subscription, Playlist)
 │   ├── database.py          # SQLite configuration
-│   ├── cli.py               # CLI for .ht export/import (python cli.py export/import)
+│   ├── cli.py               # CLI: install, init, login, download, export/import, songs, playlists, videos
 │   ├── import_music.py      # Import local music files (supports mp3, webm, flac, wav, m4a, ogg)
 │   ├── requirements.txt     # Python dependencies
 │   └── services/
@@ -55,9 +55,26 @@ hometube/
 cd backend
 pip install -r requirements.txt
 python main.py               # Run server (add --dev for ngrok tunnel)
-python cli.py export -o backup.ht   # Export database to .ht file
-python cli.py import backup.ht      # Import .ht file into database
 python import_music.py --folder /path --user-id 1  # Import local music
+```
+
+### CLI (`python cli.py` or `ht` after install)
+```bash
+cd backend
+python cli.py install         # Install `ht` command to ~/.local/bin
+ht init                       # Interactive setup (data dir, default user, mode)
+ht login <user>               # Switch active user (creates if not exists)
+ht download <url>             # Auto-detect video/music, download, store
+ht download <url> --playlist "name"  # Download music into specific playlist
+ht download <url> --type music       # Force music type
+ht export -o backup.ht        # Export .ht file for active user
+ht export --week              # Export last 7 days
+ht export --month             # Export last 30 days
+ht export --day               # Export last 24 hours
+ht import backup.ht           # Import .ht file
+ht songs                      # List music for active user
+ht playlists                  # List playlists for active user
+ht videos                     # List videos for active user
 ```
 
 ### Frontend

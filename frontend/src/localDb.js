@@ -98,6 +98,10 @@ export const LocalDB = {
     })
   },
 
+  async getFileByTitle(title) {
+    const db = await getDb()
+  },
+
   async getFilesByType(type) {
     const db = await getDb()
     return new Promise((resolve, reject) => {

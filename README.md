@@ -17,7 +17,7 @@ A self-hosted YouTube media downloader with a mobile-friendly web interface. Dow
 - **Server Mode** - Connect to a Python/FastAPI backend with SQLite storage, yt-dlp downloads, background scheduler
 - **Local Mode** - Fully offline operation in the browser via IndexedDB, no server needed
 - **Portable Data (.ht)** - Export/import your entire collection as `.ht` archive files to move between modes and instances
-- **CLI Export/Import** - Manage `.ht` archives from the terminal with `python cli.py export` / `python cli.py import`
+- **CLI Tool** - Full terminal interface with `ht` command: download, export/import, manage songs/playlists/videos
 - **Progressive Web App** - Mobile-optimized, installable on phones, download files to device
 - **Automatic Scheduling** - Background service checks subscriptions every 60 seconds
 
@@ -35,21 +35,35 @@ A self-hosted YouTube media downloader with a mobile-friendly web interface. Dow
 - Python 3 with pip
 - Node.js with npm
 
-### Quick Start (Production)
+### Quick Start (Local Mode)
+
+The easiest way to use HomeTube is to run the CLI and then import from the created exports into the frontend.
+This allows for the app to be a PWA on any device without also requiring `ngrok` or setting up your own HTTPS / hosting.
 
 ```bash
-# Install dependencies
-cd backend
-pip install -r requirements.txt
+# Install everything (venv, deps, frontend build, ht command)
+bash install.sh
 
-# Build frontend
-cd ../frontend
-npm install
-npm run build
+# Configure your data directory and default user
+ht init
 
-# Start the app (serves frontend from backend)
-cd ../backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+# Download some music
+ht download "https://www.youtube.com/playlist?list=..." --playlist "Chill Vibes"
+
+# Export for importing into the PWA
+ht export -o my-collection.ht
+```
+
+Then open the frontend, choose **Local Mode**, and import the `.ht` file.
+
+### Quick Start (Self Hosted)
+
+```bash
+# One-shot install (venv + deps + frontend build + ht command)
+bash install.sh
+
+# Start the server
+cd backend && source cli.sh && python main.py
 ```
 
 Open `http://localhost:8000` in your browser.
@@ -61,8 +75,7 @@ Run both servers in separate terminals:
 
 ```bash
 # Terminal 1: Backend (with auto-reload)
-cd backend
-pip install -r requirements.txt
+cd backend && source cli.sh
 uvicorn main:app --reload
 # Runs on http://localhost:8000
 
@@ -78,8 +91,7 @@ This mode automatically sets up an ngrok tunnel to expose your local backend sec
 
 ```bash
 # Terminal: Backend with ngrok tunnel
-cd backend
-pip install -r requirements.txt
+cd backend && source cli.sh
 python main.py --dev
 # This will show you a public URL to use with your GitHub Pages frontend
 ```
@@ -124,34 +136,48 @@ secure access to your local backend via GitHub Pages.
 - **Server Mode** (default): Connect to a Python backend. Enter the backend URL on setup or paste one shared via `--dev` mode. All data is stored in SQLite on the server. Media downloads use yt-dlp.
 - **Local Mode**: Runs entirely in your browser using IndexedDB — no server needed. Import an `.ht` file on setup to populate your local collection. Media and metadata are stored client-side. Switch modes in Settings at any time.
 
-### Exporting and Importing Data (`.ht` files)
+### CLI Tool (`ht`)
 
-Data can be transferred between modes and instances using `.ht` archive files:
+The `ht` command provides a full terminal interface for HomeTube:
 
 ```bash
-# Export from server (CLI)
-cd backend
-python cli.py export -o backup.ht
-python cli.py export --user-id 1 -o backup.ht    # Export specific user
+# Install the command (done by install.sh, or manually:)
+cd backend && bash cli.sh install
 
-# Import into server (CLI)
-python cli.py import backup.ht
+# Initialize configuration
+ht init                         # Interactive: data dir, default user, mode
 
-# Export from API
-curl -X POST http://localhost:8000/api/export -H "Authorization: Bearer <token>" -o backup.ht
+# User management
+ht login <username>             # Switch active user (creates if not exists)
+ht login <username> --yes       # Create without prompting
 
-# Import via API
-curl -X POST http://localhost:8000/api/import -F "file=@backup.ht" -H "Authorization: Bearer <token>"
+# Downloads (auto-detects video vs music vs playlist)
+ht download "https://youtube.com/watch?v=..."                   # Single video
+ht download "https://youtube.com/watch?v=..." --type music      # Force music
+ht download "https://youtube.com/playlist?list=..."             # Auto playlist
+ht download "https://youtube.com/playlist?list=..." -p "Chill"  # Music + playlist
+
+# Browse your library
+ht songs                        # List music for active user
+ht playlists                    # List playlists for active user
+ht videos                       # List videos for active user
+
+# Export / Import
+ht export -o backup.ht          # Export all data for active user
+ht export --week -o week.ht     # Last 7 days only
+ht export --month -o month.ht   # Last 30 days only
+ht export --day -o day.ht       # Last 24 hours only
+ht import backup.ht             # Import .ht file
 ```
 
-You can also export/import from the frontend UI in both modes.
+Data can also be transferred via the frontend UI in both modes.
 
 ### Import Existing Music Collection
 
 Import songs from an existing folder into HomeTube with automatic metadata extraction:
 
 ```bash
-cd backend
+cd backend && source cli.sh
 
 # List users to get your user ID
 python import_music.py --list-users
@@ -179,7 +205,8 @@ hometube/
 │   ├── main.py              # FastAPI app with REST endpoints
 │   ├── models.py            # DB models (User, Video, Music, Channel, Subscription, Playlist)
 │   ├── database.py          # SQLite configuration
-│   ├── cli.py               # CLI for .ht export/import
+│   ├── cli.py               # CLI: install, init, login, download, export/import, songs, playlists, videos
+│   ├── cli.sh               # Helper script: manages venv and installs ht command
 │   ├── import_music.py      # Import existing music files
 │   ├── requirements.txt     # Python dependencies
 │   └── services/

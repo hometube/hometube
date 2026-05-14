@@ -16,6 +16,7 @@ function _buildProvider() {
 export function getProvider() {
   if (!_provider) {
     _provider = _buildProvider()
+    window._provider = _provider
   }
   return _provider
 }
