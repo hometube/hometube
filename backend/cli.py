@@ -288,9 +288,7 @@ def cmd_download(args):
                 print(f"\nAdded {len(entries)} videos.")
             else:
                 playlist_name = args.playlist or info.get("title", "").strip() or "New Playlist"
-                playlist = None
-                if args.playlist:
-                    playlist = db.query(Playlist).filter(Playlist.name == args.playlist, Playlist.user_id == user.id).first()
+                playlist = db.query(Playlist).filter(Playlist.name == playlist_name, Playlist.user_id == user.id).first()
                 if not playlist:
                     playlist = Playlist(name=playlist_name, user_id=user.id)
                     db.add(playlist)
@@ -309,7 +307,14 @@ def cmd_download(args):
                     entry_url = entry.get("webpage_url") or entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
                     existing = db.query(Music).filter(Music.video_id == entry["id"]).first()
                     if existing:
-                        print(f"  Exists: {title}")
+                        playlist_ids = [s["music_id"] for s in (playlist.songs or [])]
+                        if existing.id not in playlist_ids:
+                            songs = list(playlist.songs or [])
+                            songs.append({"music_id": existing.id, "position": len(songs)})
+                            playlist.songs = songs
+                            print(f"  Added existing: {title}")
+                        else:
+                            print(f"  Already in playlist: {title}")
                         continue
                     music = Music(video_id=entry["id"], url=entry_url, title=title, artist=artist, album_art=album_art, added_by=user.id)
                     db.add(music)
