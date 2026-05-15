@@ -110,6 +110,33 @@ def print_table(rows, headers):
         print("  ".join(str(c).ljust(w) for c, w in zip(row, col_widths)))
 
 
+def _resolve_playlist(db, user_id, id_or_name):
+    from models import Playlist
+    try:
+        pk = int(id_or_name)
+        return db.query(Playlist).filter(Playlist.id == pk, Playlist.user_id == user_id).first()
+    except ValueError:
+        return db.query(Playlist).filter(Playlist.name == id_or_name, Playlist.user_id == user_id).first()
+
+
+def _resolve_music(db, user_id, id_or_name):
+    from models import Music
+    try:
+        pk = int(id_or_name)
+        return db.query(Music).filter(Music.id == pk, Music.added_by == user_id).first()
+    except ValueError:
+        return db.query(Music).filter(Music.title.ilike(id_or_name), Music.added_by == user_id).first()
+
+
+def _resolve_video(db, user_id, id_or_name):
+    from models import Video
+    try:
+        pk = int(id_or_name)
+        return db.query(Video).filter(Video.id == pk, Video.added_by == user_id).first()
+    except ValueError:
+        return db.query(Video).filter(Video.title.ilike(id_or_name), Video.added_by == user_id).first()
+
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
@@ -800,6 +827,179 @@ def cmd_videos(args):
         db.close()
 
 
+def cmd_song_remove(args):
+    db = get_db()
+    try:
+        from models import Music, Playlist
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        music = _resolve_music(db, user.id, args.id_or_name)
+        if not music:
+            print(f"Error: Song not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        playlists = db.query(Playlist).filter(Playlist.user_id == user.id).all()
+        for pl in playlists:
+            if pl.songs:
+                pl.songs = [s for s in pl.songs if s.get("music_id") != music.id]
+        if music.filename:
+            fpath = os.path.join(DL_DIR, "music", music.filename)
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+        title = music.title
+        db.delete(music)
+        db.commit()
+        print(f"Removed song: {title}")
+    finally:
+        db.close()
+
+
+def cmd_video_remove(args):
+    db = get_db()
+    try:
+        from models import Video
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        video = _resolve_video(db, user.id, args.id_or_name)
+        if not video:
+            print(f"Error: Video not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        if video.downloaded and video.video_id:
+            fpath = os.path.join(DL_DIR, "videos", f"{video.video_id}.mp4")
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+        title = video.title
+        db.delete(video)
+        db.commit()
+        print(f"Removed video: {title}")
+    finally:
+        db.close()
+
+
+def cmd_playlist_remove(args):
+    db = get_db()
+    try:
+        from models import Playlist
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        playlist = _resolve_playlist(db, user.id, args.id_or_name)
+        if not playlist:
+            print(f"Error: Playlist not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        name = playlist.name
+        db.delete(playlist)
+        db.commit()
+        print(f"Removed playlist: {name}")
+    finally:
+        db.close()
+
+
+def cmd_playlist_add(args):
+    db = get_db()
+    try:
+        from models import Playlist
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        existing = db.query(Playlist).filter(Playlist.name == args.name, Playlist.user_id == user.id).first()
+        if existing:
+            print(f"Playlist already exists: {args.name}")
+            return
+        playlist = Playlist(name=args.name, user_id=user.id)
+        db.add(playlist)
+        db.commit()
+        print(f"Created playlist: {playlist.name} (id {playlist.id})")
+    finally:
+        db.close()
+
+
+def cmd_playlist_update_add_song(args):
+    db = get_db()
+    try:
+        from models import Playlist, Music
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        playlist = _resolve_playlist(db, user.id, args.id_or_name)
+        if not playlist:
+            print(f"Error: Playlist not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        music = _resolve_music(db, user.id, args.song_id_or_name)
+        if not music:
+            print(f"Error: Song not found: {args.song_id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        songs = list(playlist.songs or [])
+        music_ids = [s.get("music_id") for s in songs]
+        if music.id in music_ids:
+            print(f"Song already in playlist: {music.title}")
+            return
+        songs.append({"music_id": music.id, "position": len(songs)})
+        playlist.songs = songs
+        db.commit()
+        print(f"Added '{music.title}' to playlist '{playlist.name}'")
+    finally:
+        db.close()
+
+
+def cmd_playlist_update_remove_song(args):
+    db = get_db()
+    try:
+        from models import Playlist, Music
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        playlist = _resolve_playlist(db, user.id, args.id_or_name)
+        if not playlist:
+            print(f"Error: Playlist not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        music = _resolve_music(db, user.id, args.song_id_or_name)
+        if not music:
+            print(f"Error: Song not found: {args.song_id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        songs = list(playlist.songs or [])
+        new_songs = [s for s in songs if s.get("music_id") != music.id]
+        if len(new_songs) == len(songs):
+            print(f"Song not in playlist: {music.title}")
+            return
+        playlist.songs = new_songs
+        db.commit()
+        print(f"Removed '{music.title}' from playlist '{playlist.name}'")
+    finally:
+        db.close()
+
+
+def cmd_playlist_update_rename(args):
+    db = get_db()
+    try:
+        from models import Playlist
+        user = get_active_user(db)
+        if not user:
+            print("Error: No active user. Use 'ht login <username>' first.", file=sys.stderr)
+            sys.exit(1)
+        playlist = _resolve_playlist(db, user.id, args.id_or_name)
+        if not playlist:
+            print(f"Error: Playlist not found: {args.id_or_name}", file=sys.stderr)
+            sys.exit(1)
+        existing = db.query(Playlist).filter(Playlist.name == args.new_name, Playlist.user_id == user.id, Playlist.id != playlist.id).first()
+        if existing:
+            print(f"Another playlist already named '{args.new_name}' exists.")
+            return
+        old_name = playlist.name
+        playlist.name = args.new_name
+        db.commit()
+        print(f"Renamed playlist '{old_name}' to '{playlist.name}'")
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
@@ -839,11 +1039,44 @@ def main():
     import_p.add_argument("--playlist", "-p", help="Playlist name to add imported music to")
     import_p.add_argument("--move", action="store_true", help="Move files instead of copying (music import)")
 
-    sub.add_parser("songs", help="List music for active user")
+    # songs
+    songs_p = sub.add_parser("songs", help="List or manage songs")
+    songs_sub = songs_p.add_subparsers(dest="songs_subcommand")
+    songs_p.set_defaults(func=cmd_songs)
+    songs_remove_p = songs_sub.add_parser("remove", help="Remove a song by ID or name")
+    songs_remove_p.add_argument("id_or_name", help="Song ID or name")
+    songs_remove_p.set_defaults(func=cmd_song_remove)
 
-    sub.add_parser("playlists", help="List playlists for active user")
+    # playlists
+    playlists_p = sub.add_parser("playlists", help="List or manage playlists")
+    playlists_sub = playlists_p.add_subparsers(dest="playlists_subcommand")
+    playlists_p.set_defaults(func=cmd_playlists)
+    playlists_remove_p = playlists_sub.add_parser("remove", help="Remove a playlist by ID or name")
+    playlists_remove_p.add_argument("id_or_name", help="Playlist ID or name")
+    playlists_remove_p.set_defaults(func=cmd_playlist_remove)
+    playlists_add_p = playlists_sub.add_parser("add", help="Create a new playlist")
+    playlists_add_p.add_argument("name", help="Playlist name")
+    playlists_add_p.set_defaults(func=cmd_playlist_add)
+    playlists_update_p = playlists_sub.add_parser("update", help="Update a playlist (add/remove songs, rename)")
+    playlists_update_p.add_argument("id_or_name", help="Playlist ID or name")
+    playlists_update_sub = playlists_update_p.add_subparsers(dest="playlists_update_action", required=True)
+    pl_update_add = playlists_update_sub.add_parser("add", help="Add song to playlist")
+    pl_update_add.add_argument("song_id_or_name", help="Song ID or name")
+    pl_update_add.set_defaults(func=cmd_playlist_update_add_song)
+    pl_update_remove = playlists_update_sub.add_parser("remove", help="Remove song from playlist")
+    pl_update_remove.add_argument("song_id_or_name", help="Song ID or name")
+    pl_update_remove.set_defaults(func=cmd_playlist_update_remove_song)
+    pl_update_rename = playlists_update_sub.add_parser("rename", help="Rename playlist")
+    pl_update_rename.add_argument("new_name", help="New playlist name")
+    pl_update_rename.set_defaults(func=cmd_playlist_update_rename)
 
-    sub.add_parser("videos", help="List videos for active user")
+    # videos
+    videos_p = sub.add_parser("videos", help="List or manage videos")
+    videos_sub = videos_p.add_subparsers(dest="videos_subcommand")
+    videos_p.set_defaults(func=cmd_videos)
+    videos_remove_p = videos_sub.add_parser("remove", help="Remove a video by ID or name")
+    videos_remove_p.add_argument("id_or_name", help="Video ID or name")
+    videos_remove_p.set_defaults(func=cmd_video_remove)
 
     sub.add_parser("update", help="Pull latest from git and install dependencies")
 
@@ -858,20 +1091,20 @@ def main():
         cmd_import_music(args)
         return
 
-    cmds = {
-        "install": cmd_install,
-        "init": cmd_init,
-        "login": cmd_login,
-        "download": cmd_download,
-        "export": cmd_export,
-        "import": cmd_import,
-        "songs": cmd_songs,
-        "playlists": cmd_playlists,
-        "videos": cmd_videos,
-        "update": cmd_update,
-    }
-
-    cmds[args.command](args)
+    # Dispatch via func attribute (set by nested subparsers) or command dict
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        cmds = {
+            "install": cmd_install,
+            "init": cmd_init,
+            "login": cmd_login,
+            "download": cmd_download,
+            "export": cmd_export,
+            "import": cmd_import,
+            "update": cmd_update,
+        }
+        cmds[args.command](args)
 
 
 if __name__ == "__main__":
