@@ -1,28 +1,29 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useMusicStore } from '../stores/music.js'
 
 const props = defineProps(['audioElement', 'playing', 'subtle'])
 
 const canvas = ref(null)
+const musicStore = useMusicStore()
+const { bpm } = storeToRefs(musicStore)
+const { detectBeat } = musicStore
 let animFrameId = null
-let audioContext = null
 let analyser = null
 let dataArray = null
-let source = null
 let rotation = 0
 
 const initAnalyser = () => {
-  if (!canvas.value || !props.audioElement) return
+  if (!canvas.value) return
   canvas.value.width = canvas.value.offsetWidth
   canvas.value.height = canvas.value.offsetHeight
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)()
-    analyser = audioContext.createAnalyser()
-    analyser.fftSize = 256
-    source = audioContext.createMediaElementSource(props.audioElement)
-    source.connect(analyser)
-    analyser.connect(audioContext.destination)
-    dataArray = new Uint8Array(analyser.frequencyBinCount)
+  try {
+    const result = musicStore.getAnalyser()
+    analyser = result.analyser
+    dataArray = result.dataArray
+  } catch (e) {
+    return
   }
   drawWaveform()
 }
@@ -37,6 +38,7 @@ const drawWaveform = () => {
   }
   animFrameId = requestAnimationFrame(drawWaveform)
   analyser.getByteFrequencyData(dataArray)
+  detectBeat()
 
   const ctx = canvas.value.getContext('2d')
   const w = canvas.value.width
@@ -52,7 +54,8 @@ const drawWaveform = () => {
   const angleSize = Math.PI * 2 / barCount
   const angleStep = angleSize * (6 + barCount) / 3
 
-  rotation += 0.01
+  const speed = bpm.value ? Math.min(3, Math.max(0.25, bpm.value / 120)) : 1
+  rotation += 0.01 * speed
   const avgIntensity = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
   for (let i = 0; i < barCount; i++) {
@@ -76,8 +79,7 @@ const drawWaveform = () => {
 }
 
 watch(() => props.playing, (newVal) => {
-  if (newVal && props.audioElement) {
-    if (audioContext && audioContext.state === 'suspended') audioContext.resume()
+  if (newVal && props.audioElement && canvas.value) {
     initAnalyser()
   }
 })

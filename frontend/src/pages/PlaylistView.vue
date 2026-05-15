@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { API } from '../api.js'
@@ -216,6 +216,7 @@ const loadPlaylist = async () => {
     } else {
       error.value = 'Playlist not found'
     }
+    scrollToCurrentSong()
   } catch (e) {
     error.value = 'Failed to load playlist'
     console.error('Failed to load playlist:', e)
@@ -228,12 +229,22 @@ const close = () => {
   router.push('/music')
 }
 
+const scrollToCurrentSong = async () => {
+  await nextTick()
+  const el = document.querySelector('[data-active-song]')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 onMounted(() => {
   loadPlaylist()
 })
 
 watch(() => route.params.id, () => {
   loadPlaylist()
+})
+
+watch(currentIndex, () => {
+  scrollToCurrentSong()
 })
 </script>
 
@@ -267,6 +278,7 @@ watch(() => route.params.id, () => {
 
         <div class="p-4">
           <div v-for="(s, idx) in displaySongs" :key="s.id"
+            :data-active-song="idx === currentIndex || undefined"
             class="flex items-center gap-3 p-3 rounded"
             :class="{
               'bg-gray-800': idx === currentIndex,

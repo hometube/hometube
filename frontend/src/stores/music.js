@@ -131,6 +131,51 @@ export const useMusicStore = defineStore('music', () => {
   let audioContext = null
   let analyser = null
   let dataArray = null
+  let mediaSourceCreated = false
+
+  // BPM detection
+  const bpm = ref(0)
+  let lastBeatTime = 0
+  let energyHistory = []
+  let beatIntervals = []
+
+  const detectBeat = () => {
+    if (!analyser || !dataArray) return
+    const bassBins = Math.min(6, dataArray.length)
+    let totalEnergy = 0
+    for (let i = 0; i < bassBins; i++) {
+      totalEnergy += dataArray[i]
+    }
+
+    energyHistory.push(totalEnergy)
+    if (energyHistory.length > 60) {
+      energyHistory.shift()
+    }
+    if (energyHistory.length < 10) return
+
+    const localAvg = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length
+    if (totalEnergy > localAvg * 1.35 && totalEnergy > 20) {
+      const now = performance.now()
+      if (lastBeatTime > 0) {
+        const interval = now - lastBeatTime
+        if (interval > 200 && interval < 2000) {
+          beatIntervals.push(interval)
+          if (beatIntervals.length > 8) {
+            beatIntervals.shift()
+          }
+          const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length
+          bpm.value = Math.round(60000 / avgInterval)
+        }
+      }
+      lastBeatTime = now
+    }
+  }
+
+  const resumeAudioContext = () => {
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {})
+    }
+  }
 
   const currentSong = computed(() => {
     if (displaySongs.value.length === 0) return null
@@ -142,13 +187,20 @@ export const useMusicStore = defineStore('music', () => {
       audioContext = new (window.AudioContext || window.webkitAudioContext)()
       analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
-      if (audio.value) {
+      dataArray = new Uint8Array(analyser.frequencyBinCount)
+    }
+    if (audio.value && !mediaSourceCreated && audioContext.state !== 'closed') {
+      try {
         const source = audioContext.createMediaElementSource(audio.value)
         source.connect(analyser)
         analyser.connect(audioContext.destination)
+        mediaSourceCreated = true
+      } catch (e) {
+        // MediaElementSource already connected from elsewhere
+        mediaSourceCreated = true
       }
-      dataArray = new Uint8Array(analyser.frequencyBinCount)
     }
+    resumeAudioContext()
     return { analyser, dataArray, audioContext }
   }
 
@@ -239,7 +291,9 @@ export const useMusicStore = defineStore('music', () => {
         duration.value = state.duration || 0
 
         if (state.playing) {
-          audio.value.play().catch(() => {})
+          audio.value.play().catch(() => {
+            playing.value = false
+          })
           playing.value = true
           updateMediaSession(song)
         }
@@ -276,6 +330,7 @@ export const useMusicStore = defineStore('music', () => {
     }
 
     audio.value.addEventListener('ended', () => {
+      resumeAudioContext()
       const idx = findNextIndex(true)
       if (idx >= 0) {
         playSong(idx)
@@ -352,6 +407,11 @@ export const useMusicStore = defineStore('music', () => {
       await checkDownloaded(displaySongs.value)
     }
 
+    bpm.value = 0
+    lastBeatTime = 0
+    energyHistory = []
+    beatIntervals = []
+
     currentIndex.value = index
 
     const song = displaySongs.value[index]
@@ -378,7 +438,11 @@ export const useMusicStore = defineStore('music', () => {
       audio.value.src = url
       audio.value.load()
     }
-    audio.value.play().catch(() => {})
+    resumeAudioContext()
+    audio.value.play().catch(() => {
+      playing.value = false
+      return
+    })
 
     updateMediaSession(song)
 
@@ -399,7 +463,10 @@ export const useMusicStore = defineStore('music', () => {
     if (!audio.value) return
     playing.value = !playing.value
     if (playing.value) {
-      audio.value.play().catch(() => {})
+      resumeAudioContext()
+      audio.value.play().catch(() => {
+        playing.value = false
+      })
     } else {
       audio.value.pause()
     }
@@ -509,6 +576,7 @@ export const useMusicStore = defineStore('music', () => {
     duration,
     initialized,
     playbackError,
+    bpm,
     currentSong,
     playlists,
     songs,
@@ -527,6 +595,7 @@ export const useMusicStore = defineStore('music', () => {
     loadPlaylistSongs,
     checkDownloaded,
     shuffleOrder,
+    detectBeat,
     playSong,
     togglePlay,
     next,
