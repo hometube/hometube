@@ -42,8 +42,8 @@ const deletePlaylist = async (e, pl) => {
 const computeBackground = (name) => {
   const hash = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0)
   const hue = hash * 7 % 360
-  const start = `hsla(${hue}, 30%, 10%, 0.8)`
-  const end = `hsla(${hue}, 30%, 20%, 0.8)`
+  const start = `hsla(${hue}, 30%, 10%, calc(0.8 * var(--opacity, 1)))`
+  const end = `hsla(${hue}, 30%, 20%, calc(0.8 * var(--opacity, 1)))`
   const x = (hash % 50) + 25
   const y = ((hash >> 8) % 50) + 25
   return `radial-gradient(circle at ${x}% ${y}%, ${start}, ${end})`
@@ -54,33 +54,61 @@ const computeBackground = (name) => {
   <div class="p-4 pt-16">
     <div class="mb-4">
       <h2 class="text-xl font-bold mb-2">Playlists</h2>
-      <div v-if="musicStore.playlists.length === 0" class="text-center py-8 text-gray-500">
-        No playlists yet. Add music to create one.
-      </div>
-      <div v-else class="grid grid-cols-2 gap-2">
-        <div v-for="pl in musicStore.playlists" :key="pl.id" @click="openPlaylist(pl)"
-          class="border border-gray-700 rounded-lg py-6 px-4 cursor-pointer hover:bg-gray-700 flex items-center justify-between"
-          :style="{ background: computeBackground(pl.name) }"
-        >
-          <div>
-            <div class="text-lg font-medium">{{ pl.name }}</div>
-            <div class="text-xs text-gray-400">{{ (pl.songs || []).length }} songs</div>
-          </div>
-          <button @click="(e) => deletePlaylist(e, pl)" class="text-gray-500 hover:text-red-400">
-            <FontAwesomeIcon :icon="['fas', 'trash']" />
-          </button>
+      <Transition name="fade" mode="out-in">
+        <div v-if="musicStore.playlists.length === 0" key="empty" class="text-center py-8 text-gray-500">
+          No playlists yet. Add music to create one.
         </div>
-      </div>
-      <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-700">
-        <div v-for="vp in visibleVirtualPlaylists" :key="vp.id" @click="openVirtual(vp)"
+        <TransitionGroup v-else key="grid" name="stagger" tag="div" class="grid grid-cols-2 gap-2">
+          <div v-for="(pl, i) in musicStore.playlists" :key="pl.id" @click="openPlaylist(pl)"
+            class="border border-gray-700 rounded-lg py-6 px-4 cursor-pointer hover:bg-gray-700 flex items-center justify-between"
+            :style="{ '--i': i, background: computeBackground(pl.name) }"
+          >
+            <div>
+              <div class="text-lg font-medium">{{ pl.name }}</div>
+              <div class="text-xs text-gray-400">{{ (pl.songs || []).length }} songs</div>
+            </div>
+            <button @click="(e) => deletePlaylist(e, pl)" class="text-gray-500 hover:text-red-400">
+              <FontAwesomeIcon :icon="['fas', 'trash']" />
+            </button>
+          </div>
+        </TransitionGroup>
+      </Transition>
+      <TransitionGroup name="stagger" tag="div" class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-700">
+        <div v-for="(vp, i) in visibleVirtualPlaylists" :key="vp.id" @click="openVirtual(vp)"
+          :style="{ '--i': i }"
           class="bg-gray-800 border border-gray-700 rounded-lg py-6 px-4 cursor-pointer hover:bg-gray-700">
           <div class="text-lg font-medium">{{ vp.name }}</div>
           <div class="text-xs text-gray-400">{{ vp.songs.length }} songs</div>
         </div>
-      </div>
+      </TransitionGroup>
     </div>
     <button @click="router.push('/music/add')" class="w-full p-3 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm">
       + Add Music
     </button>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.stagger-enter-active {
+  animation: stagger-in 0.5s ease-out both;
+  animation-delay: calc(var(--i, 0) * 100ms);
+}
+
+@keyframes stagger-in {
+  from {
+    --opacity: 0;
+  }
+  to {
+    --opacity: 1;
+  }
+}
+</style>

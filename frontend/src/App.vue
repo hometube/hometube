@@ -115,61 +115,63 @@ onUnmounted(() => {
     </div>
 
     <!-- Left nav menu -->
-    <div v-if="!hideNavbar && navOpen" class="fixed inset-0 z-[100]" @click="navOpen = false">
-      <div class="absolute inset-0 bg-black bg-opacity-50"></div>
-      <div class="absolute top-0 left-0 bottom-0 w-64 bg-gray-900 p-4 overflow-y-auto" @click.stop>
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold">Menu</h2>
-          <button @click="navOpen = false" class="text-gray-400">
-            <FontAwesomeIcon :icon="['fas', 'times']" />
-          </button>
-        </div>
+    <Transition name="nav">
+      <div v-if="!hideNavbar && navOpen" class="fixed inset-0 z-[100]" @click="navOpen = false">
+        <div class="absolute inset-0 bg-black/50"></div>
+        <div class="nav-panel absolute top-0 left-0 bottom-0 w-64 bg-gray-900 p-4 overflow-y-auto" @click.stop>
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold">Menu</h2>
+            <button @click="navOpen = false" class="text-gray-400">
+              <FontAwesomeIcon :icon="['fas', 'times']" />
+            </button>
+          </div>
 
-        <div class="mb-4">
-          <div class="text-xs text-gray-500 uppercase mb-2">Video</div>
-          <button @click="navigate('video', 'home')"
-            class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Video Home
-          </button>
-          <button v-if="!isLocalMode()" @click="navigate('video', 'add')"
-            class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Video
-          </button>
-          <button v-if="!isLocalMode()" @click="navigate('video', 'channel')"
-            class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'tv']" class="mr-2" /> Add Channel
-          </button>
-        </div>
+          <div class="mb-4">
+            <div class="text-xs text-gray-500 uppercase mb-2">Video</div>
+            <button @click="navigate('video', 'home')"
+              class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Video Home
+            </button>
+            <button v-if="!isLocalMode()" @click="navigate('video', 'add')"
+              class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Video
+            </button>
+            <button v-if="!isLocalMode()" @click="navigate('video', 'channel')"
+              class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'tv']" class="mr-2" /> Add Channel
+            </button>
+          </div>
 
-        <div class="mb-4">
-          <div class="text-xs text-gray-500 uppercase mb-2">Music</div>
-          <button @click="navigate('music', 'home')"
-            class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Music Home
-          </button>
-          <button v-if="!isLocalMode()" @click="navigate('music', 'add')"
-            class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Music
-          </button>
-        </div>
+          <div class="mb-4">
+            <div class="text-xs text-gray-500 uppercase mb-2">Music</div>
+            <button @click="navigate('music', 'home')"
+              class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'home']" class="mr-2" /> Music Home
+            </button>
+            <button v-if="!isLocalMode()" @click="navigate('music', 'add')"
+              class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'plus']" class="mr-2" /> Add Music
+            </button>
+          </div>
 
-        <div class="mb-4">
-          <div class="text-xs text-gray-500 uppercase mb-2">App</div>
-          <button v-if="showInstall" @click="installApp" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'save']" class="mr-2" /> Install App
-          </button>
-          <button @click="navigate('settings')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'cog']" class="mr-2" /> Settings
-          </button>
-          <button @click="navigate('export')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'download']" class="mr-2" /> Export Data
-          </button>
-          <button @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
-            <FontAwesomeIcon :icon="['fas', 'upload']" class="mr-2" /> Import Data
-          </button>
+          <div class="mb-4">
+            <div class="text-xs text-gray-500 uppercase mb-2">App</div>
+            <button v-if="showInstall" @click="installApp" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'save']" class="mr-2" /> Install App
+            </button>
+            <button @click="navigate('settings')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'cog']" class="mr-2" /> Settings
+            </button>
+            <button @click="navigate('export')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'download']" class="mr-2" /> Export Data
+            </button>
+            <button @click="navigate('import')" class="block w-full text-left p-2 rounded hover:bg-gray-800 text-white">
+              <FontAwesomeIcon :icon="['fas', 'upload']" class="mr-2" /> Import Data
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
     <router-view />
 
@@ -183,3 +185,23 @@ onUnmounted(() => {
     <div id="popover-portal" class="fixed z-[1000]"></div>
   </div>
 </template>
+
+<style scoped>
+.nav-enter-active,
+.nav-leave-active {
+  transition: opacity 0.2s ease;
+}
+.nav-enter-from,
+.nav-leave-to {
+  opacity: 0;
+}
+
+.nav-enter-active .nav-panel,
+.nav-leave-active .nav-panel {
+  transition: transform 0.2s ease;
+}
+.nav-enter-from .nav-panel,
+.nav-leave-to .nav-panel {
+  transform: translateX(-100%);
+}
+</style>

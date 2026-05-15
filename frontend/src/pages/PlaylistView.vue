@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { API } from '../api.js'
@@ -174,6 +174,9 @@ const loadPlaylist = async () => {
   const { id } = route.params
   loading.value = true
   error.value = null
+  displaySongs.value = []
+  playlist.value = null
+  currentIndex.value = -1
 
   if (!id) {
     error.value = 'No playlist specified'
@@ -235,13 +238,9 @@ const scrollToCurrentSong = async () => {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
-onMounted(() => {
-  loadPlaylist()
-})
-
 watch(() => route.params.id, () => {
   loadPlaylist()
-})
+}, { immediate: true })
 
 watch(currentIndex, () => {
   scrollToCurrentSong()
@@ -277,60 +276,94 @@ watch(currentIndex, () => {
         </div>
 
         <div class="p-4">
-          <div v-for="(s, idx) in displaySongs" :key="s.id"
-            :data-active-song="idx === currentIndex || undefined"
-            class="flex items-center gap-3 p-3 rounded"
-            :class="{
-              'bg-gray-800': idx === currentIndex,
-              'opacity-50': isOffline && !s.downloaded,
-              'hover:bg-gray-800': !isOffline || s.downloaded,
-              'cursor-pointer': !isOffline || s.downloaded,
-              'cursor-default': isOffline && !s.downloaded,
-            }"
-            @click="(!isOffline || s.downloaded) && playSong(idx)">
-            <div class="flex-1">
-              <div class="text-sm">{{ cleanTitle(s.title) }}</div>
-              <div class="text-xs text-gray-400">{{ s.artist }}</div>
+          <TransitionGroup name="stagger" tag="div">
+            <div v-for="(s, idx) in displaySongs" :key="s.id"
+              :data-active-song="idx === currentIndex || undefined"
+              :style="{ '--i': idx }"
+              class="flex items-center gap-3 p-3 rounded"
+              :class="{
+                'bg-gray-800': idx === currentIndex,
+                'opacity-50': isOffline && !s.downloaded,
+                'hover:bg-gray-800': !isOffline || s.downloaded,
+                'cursor-pointer': !isOffline || s.downloaded,
+                'cursor-default': isOffline && !s.downloaded,
+              }"
+              @click="(!isOffline || s.downloaded) && playSong(idx)">
+              <div class="flex-1">
+                <div class="text-sm">{{ cleanTitle(s.title) }}</div>
+                <div class="text-xs text-gray-400">{{ s.artist }}</div>
+              </div>
+              <div v-if="s.downloaded" class="text-xs text-gray-400 mr-1">
+                <FontAwesomeIcon :icon="['fas', 'download']" />
+              </div>
+              <button @click.stop="openSongMenu(s)" class="text-gray-400 px-2">
+                <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
+              </button>
             </div>
-            <div v-if="s.downloaded" class="text-xs text-gray-400 mr-1">
-              <FontAwesomeIcon :icon="['fas', 'download']" />
-            </div>
-            <button @click.stop="openSongMenu(s)" class="text-gray-400 px-2">
-              <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
-            </button>
-          </div>
+          </TransitionGroup>
         </div>
       </div>
     </div>
 
-    <PlaylistMenu
-      v-if="showPlaylistMenu"
-      :playlist="playlist"
-      @close="showPlaylistMenu = false"
-      @download="handleDownloadPlaylist"
-      @rename="handleRenamePlaylist"
-      @delete="handleDeletePlaylist"
-    />
+    <Transition name="menu">
+      <PlaylistMenu
+        v-if="showPlaylistMenu"
+        :playlist="playlist"
+        @close="showPlaylistMenu = false"
+        @download="handleDownloadPlaylist"
+        @rename="handleRenamePlaylist"
+        @delete="handleDeletePlaylist"
+      />
+    </Transition>
 
-    <SongMenu
-      v-if="showSongMenu"
-      :song="menuSong"
-      :playlist="playlist"
-      :downloaded="menuSong?.downloaded"
-      :has-active-queue="hasActiveQueue"
-      :in-queue="menuSongInQueue"
-      :other-playlists="otherPlaylists"
-      :clean-title="cleanTitle"
-      @close="closeMenu"
-      @play="handlePlay"
-      @play-next="handlePlayNext"
-      @add-to-queue="handleAddToQueue"
-      @remove-from-queue="handleRemoveFromQueue"
-      @remove-from-playlist="handleRemoveFromPlaylist"
-      @add-to-playlist="handleAddToPlaylist"
-      @create-new-playlist="createNewPlaylist"
-      @download="download"
-      @delete="handleDeleteSong"
-    />
+    <Transition name="menu">
+      <SongMenu
+        v-if="showSongMenu"
+        :song="menuSong"
+        :playlist="playlist"
+        :downloaded="menuSong?.downloaded"
+        :has-active-queue="hasActiveQueue"
+        :in-queue="menuSongInQueue"
+        :other-playlists="otherPlaylists"
+        :clean-title="cleanTitle"
+        @close="closeMenu"
+        @play="handlePlay"
+        @play-next="handlePlayNext"
+        @add-to-queue="handleAddToQueue"
+        @remove-from-queue="handleRemoveFromQueue"
+        @remove-from-playlist="handleRemoveFromPlaylist"
+        @add-to-playlist="handleAddToPlaylist"
+        @create-new-playlist="createNewPlaylist"
+        @download="download"
+        @delete="handleDeleteSong"
+      />
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.stagger-enter-active {
+  animation: stagger-in 0.25s ease-out both;
+  animation-delay: calc(var(--i, 0) * 25ms);
+}
+
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menu-enter-active,
+.menu-leave-active {
+  transition: opacity 0.2s ease;
+}
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+}
+</style>
