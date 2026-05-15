@@ -67,7 +67,7 @@ const computeBackground = (name) => {
               <div class="text-lg font-medium">{{ pl.name }}</div>
               <div class="text-xs text-gray-400">{{ (pl.songs || []).length }} songs</div>
             </div>
-            <button @click="(e) => deletePlaylist(e, pl)" class="text-gray-500 hover:text-red-400">
+            <button @click="(e) => deletePlaylist(e, pl)" class="hidden sm:block text-gray-500 hover:text-red-400">
               <FontAwesomeIcon :icon="['fas', 'trash']" />
             </button>
           </div>
