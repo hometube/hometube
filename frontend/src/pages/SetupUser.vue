@@ -5,7 +5,7 @@
     <div class="bg-gray-800 p-6 rounded-lg mb-8">
       <h2 class="text-2xl font-semibold mb-4 text-center">Step 2: Create User</h2>
       <p class="text-gray-300 mb-4 text-center">
-        {{ localMode ? 'Create a user to personalize your HomeTube experience.' : 'Now that your backend is configured, create a user to personalize your HomeTube experience.' }}
+        {{ localMode ? 'Select an existing user below or create a new one to personalize your HomeTube experience.' : 'Now that your backend is configured, create a user to personalize your HomeTube experience.' }}
       </p>
       
       <div v-if="backendUrlError" class="bg-red-900 text-red-200 p-4 mb-4 rounded-lg">
@@ -16,7 +16,7 @@
         User created successfully! You can now access HomeTube.
       </div>
       
-      <div v-if="!localMode && users.length > 0 && !userCreated" class="mb-6">
+      <div v-if="users.length > 0 && !userCreated" class="mb-6">
         <h3 class="text-lg mb-2">Existing Users</h3>
         <div v-for="u in users" :key="u.id" class="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-2 flex justify-between items-center">
           <span>{{ u.username }}</span>
@@ -105,7 +105,7 @@ const selectExisting = (user) => {
 }
 
 onMounted(() => {
-  if (!localMode.value) loadUsers()
+  loadUsers()
 })
 </script>
 
