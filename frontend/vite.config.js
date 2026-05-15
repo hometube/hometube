@@ -19,8 +19,8 @@ export default defineConfig({
       manifest: {
         name: 'HomeTube',
         short_name: 'HomeTube',
-        theme_color: '#d30f0f',
-        background_color: '#ffffff',
+        theme_color: '#8a155e',
+        background_color: '#ef8747',
         orientation: 'portrait',
         display: 'standalone',
         display_override: ['minimal-ui'],

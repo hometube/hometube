@@ -1,6 +1,8 @@
 <template>
   <div class="p-8 max-w-2xl mx-auto">
     <h1 class="text-3xl font-bold mb-6 text-center">About HomeTube</h1>
+
+    <img src="/icon-512.png" alt="HomeTube Logo" class="w-32 h-32 mx-auto mb-6" />
     
     <div class="space-y-6">
       <section>
@@ -39,40 +41,43 @@
       
       <section>
         <h2 class="text-2xl font-semibold mb-4">How to Use</h2>
-        <ol class="list-decimal list-inside text-gray-300 space-y-2">
-          <li class="mb-2">
-            <strong>Set up your backend:</strong> Run the HomeTube backend server on your local machine or server.
-          </li>
-          <li class="mb-2">
-            <strong>Configure the frontend:</strong> 
-            <ul class="list-disc list-inside mt-2 space-y-1">
-              <li>For development: Run <code class="bg-gray-800 px-1 py-0.5">python main.py --dev</code> to automatically start ngrok and get a secure URL</li>
-              <li>For manual setup: Use a URL like <code class="bg-gray-800 px-1 py-0.5">https://abc123.ngrok.io/api?token=your-secret-code</code></li>
-              <li>For direct local access (not recommended for github.io): <code class="bg-gray-800 px-1 py-0.5">http://localhost:8000/api</code></li>
-            </ul>
-          </li>
-          <li class="mb-2">
-            <strong>Create a user:</strong> Add your username to personalize your experience.
-          </li>
-          <li class="mb-2">
-            <strong>Start adding media:</strong> Use the "Add Video" or "Add Music" pages to download content by URL.
-          </li>
-          <li class="mb-2">
-            <strong>Enjoy your library:</strong> Browse your downloaded videos and music through the intuitive interface.
-          </li>
-        </ol>
+        <p class="text-gray-300 mb-4">HomeTube supports two modes of operation:</p>
+        <div class="space-y-4">
+          <div class="bg-gray-800 p-4 rounded-lg">
+            <h3 class="font-semibold mb-2 text-blue-400">Server Mode</h3>
+            <p class="text-gray-300 text-sm mb-2">Connect to the Python FastAPI backend for full functionality including downloading media, subscription checking, and multi-device access.</p>
+            <ol class="list-decimal list-inside text-gray-300 space-y-1 text-sm">
+              <li>Run the backend server: <code class="bg-gray-900 px-1 py-0.5">python main.py</code></li>
+              <li>Point the frontend at your backend URL (e.g. <code class="bg-gray-900 px-1 py-0.5">http://localhost:8000/api</code>)</li>
+              <li>Create a user and start adding media</li>
+            </ol>
+          </div>
+          <div class="bg-gray-800 p-4 rounded-lg">
+            <h3 class="font-semibold mb-2 text-green-400">Local Mode</h3>
+            <p class="text-gray-300 text-sm mb-2">Runs entirely in the browser using IndexedDB — no server needed. Import an <code class="bg-gray-900 px-1 py-0.5">.ht</code> file to load your media library.</p>
+            <ol class="list-decimal list-inside text-gray-300 space-y-1 text-sm">
+              <li>On first launch, choose <strong>Local Mode</strong> on the setup page</li>
+              <li>Import an <code class="bg-gray-900 px-1 py-0.5">.ht</code> file exported from another HomeTube instance</li>
+              <li>Create a user and start browsing your media</li>
+            </ol>
+          </div>
+        </div>
+        <p class="text-gray-400 text-sm mt-4">
+          You can switch between modes anytime in <strong>Settings</strong>. Export your data as an <code class="bg-gray-800 px-1 py-0.5">.ht</code> file to transfer between modes or instances.
+        </p>
       </section>
       
       <section>
         <h2 class="text-2xl font-semibold mb-4">PWA Features</h2>
         <p class="text-gray-300 mb-4">
-          HomeTube is a Progressive Web App (PWA), which means you can install it on your device for a native-like experience:
+          HomeTube is a Progressive Web App (PWA), installable on desktop and mobile for a native-like experience:
         </p>
         <ul class="list-disc list-inside text-gray-300 space-y-2">
           <li>Installable on desktop and mobile devices</li>
-          <li>Offline capabilities for previously accessed content</li>
-          <li>Background synchronization</li>
-          <li>Push notifications (when supported)</li>
+          <li>Offline access to music via ServiceWorker caching</li>
+          <li>Local mode uses IndexedDB for fully offline operation</li>
+          <li>Wake Lock API for screen-off audio playback</li>
+          <li>Web Downloads API to save media files to device</li>
           <li>Responsive design for all screen sizes</li>
         </ul>
       </section>
