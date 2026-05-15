@@ -244,8 +244,8 @@ watch(() => route.params.id, () => {
         <div class="p-4 py-8">
           <div class="font-bold text-lg text-center mb-4">{{ playlist?.name || 'Songs' }}</div>
           <div class="flex items-center justify-center gap-2 mb-6">
-            <button @click="close" class="w-32 bg-gray-700 text-white py-2 rounded-full text-center text-sm font-medium">
-              <FontAwesomeIcon :icon="['fas', 'arrow-left']" class="mr-2" />Back
+            <button @click="close" class="sm:w-32 sm:h-auto w-10 h-10 bg-gray-700 text-white sm:py-2 rounded-full text-center text-sm font-medium">
+              <FontAwesomeIcon :icon="['fas', 'arrow-left']" /><span class="sm:inline hidden sm:ml-2">Back</span>
             </button>
             <button @click="playFirst"
               :class="['w-32 py-2 rounded-full text-center text-sm font-medium', isOffline && !downloadedSongs.length ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-white text-black']"
@@ -258,7 +258,7 @@ watch(() => route.params.id, () => {
               <FontAwesomeIcon :icon="['fas', 'random']" class="mr-2" />Shuffle
             </button>
             <button @click="showPlaylistMenu = true"
-              :class="['-mr-10 p-2 rounded-full text-center text-sm font-medium bg-gray-700 text-white']"
+              :class="['sm:-mr-10 p-2 rounded-full text-center text-sm font-medium bg-gray-700 text-white']"
             >
               <FontAwesomeIcon :icon="['fas', 'ellipsis-v']" />
             </button>
