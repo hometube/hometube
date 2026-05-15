@@ -362,14 +362,19 @@ export class LocalProvider extends DataProvider {
     return filename
   }
 
-  async importData(file) {
+  async importData(file, onProgress) {
+    const notify = onProgress || (() => {})
+
+    notify({ message: 'Reading file...', current: 0, total: 0 })
     const arrayBuf = await file.arrayBuffer()
     const zip = await JSZip.loadAsync(arrayBuf)
     const metaFile = zip.file('metadata.json')
     if (!metaFile) throw new Error('Invalid .ht file: missing metadata.json')
     const metadataStr = await metaFile.async('string')
     const metadata = JSON.parse(metadataStr)
+    const total = (metadata.music?.length || 0) + (metadata.videos?.length || 0)
 
+    notify({ message: 'Importing data...', current: 0, total })
     await LocalDB.clearAll()
     const summary = { users: 0, channels: 0, subscriptions: 0, videos: 0, music: 0, playlists: 0 }
     const idMap = {}
@@ -454,12 +459,15 @@ export class LocalProvider extends DataProvider {
     }
 
     const videoFiles = zip.file(/^videos\//)
+    let done = 0
     for (const zf of videoFiles) {
       const name = zf.name.replace('videos/', '')
       const blob = await zf.async('blob')
       const mime = name.endsWith('.mp4') ? 'video/mp4' : 'video/webm'
       const fileBlob = new Blob([await blob.arrayBuffer()], { type: mime })
       await LocalDB.storeFile(`video_${name}`, 'video', fileBlob, { filename: name })
+      done++
+      notify({ message: `Importing videos... (${done}/${videoFiles.length})`, current: done, total })
     }
 
     const musicFiles = zip.file(/^music\//)
@@ -471,8 +479,11 @@ export class LocalProvider extends DataProvider {
       const mime = mimeTypes[ext] || 'audio/mpeg'
       const fileBlob = new Blob([await blob.arrayBuffer()], { type: mime })
       await LocalDB.storeFile(`music_${name}`, 'music', fileBlob, { filename: name })
+      done++
+      notify({ message: `Importing music... (${done - videoFiles.length}/${musicFiles.length})`, current: done, total })
     }
 
+    notify({ message: 'Import complete', current: total, total })
     return { ok: true, summary }
   }
 }

@@ -318,7 +318,7 @@ def cmd_download(args):
                     music.filename = filename
                     music.downloaded = True
                     db.flush()
-                    songs = playlist.songs or []
+                    songs = list(playlist.songs or [])
                     songs.append({"music_id": music.id, "position": len(songs)})
                     playlist.songs = songs
                     print(f"  Downloaded: {title}")
@@ -541,7 +541,7 @@ def cmd_import_music(args):
                 db.flush()
 
                 if playlist:
-                    songs = playlist.songs or []
+                    songs = list(playlist.songs or [])
                     songs.append({"music_id": music.id, "position": len(songs)})
                     playlist.songs = songs
 

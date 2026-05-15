@@ -58,20 +58,27 @@
       <div v-if="mode === 'local'">
         <div class="mb-4">
           <label class="text-sm text-gray-400 mb-2 block">Import .ht file (required)</label>
-          <label class="block border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors">
-            <input type="file" accept=".ht" @change="onFileChange" class="hidden" />
+          <label class="block border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors"
+            :class="loading ? 'opacity-50 pointer-events-none' : ''">
+            <input type="file" accept=".ht" @change="onFileChange" class="hidden" :disabled="loading" />
             <div class="text-sm text-gray-400">
               {{ importFile ? importFile.name : 'Tap to select an .ht file' }}
             </div>
           </label>
         </div>
-        <div v-if="importResult" class="text-sm mb-4"
+        <div v-if="importProgress" class="text-sm mb-4 text-blue-400">
+          <FontAwesomeIcon :icon="['fas', 'spinner']" spin class="mr-2" />
+          {{ importProgress }}
+        </div>
+        <div v-if="importResult && !importProgress" class="text-sm mb-4"
           :class="importResult.startsWith('Error') ? 'text-red-400' : 'text-green-400'">
           {{ importResult }}
         </div>
-        <button @click="doImport" :disabled="!importFile"
+        <button @click="doImport" :disabled="!importFile || loading"
                 class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold rounded-lg transition-colors">
-          Import & Start
+          <FontAwesomeIcon v-if="loading" :icon="['fas', 'spinner']" spin class="mr-2" />
+          <FontAwesomeIcon v-else :icon="['fas', 'upload']" class="mr-2" />
+          {{ loading ? 'Importing...' : 'Import & Start' }}
         </button>
       </div>
     </div>
@@ -86,6 +93,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { API, setLocalMode } from '../api.js'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -96,6 +104,8 @@ const backendSuccess = ref(false)
 const tokenExchange = ref(false)
 const importFile = ref(null)
 const importResult = ref('')
+const loading = ref(false)
+const importProgress = ref('')
 const router = useRouter()
 const route = useRoute()
 
@@ -161,10 +171,15 @@ const testConnection = async () => {
 
 const doImport = async () => {
   if (!importFile.value) return
+  loading.value = true
   importResult.value = ''
+  importProgress.value = 'Starting...'
   try {
     setLocalMode(true)
-    const data = await API.importData(importFile.value)
+    const data = await API.importData(importFile.value, ({ message }) => {
+      importProgress.value = message
+    })
+    importProgress.value = ''
     if (data.summary) {
       const parts = []
       for (const [k, v] of Object.entries(data.summary)) {
@@ -174,7 +189,10 @@ const doImport = async () => {
     }
     setTimeout(() => router.push('/setup/user'), 1500)
   } catch (e) {
+    importProgress.value = ''
     importResult.value = `Error: ${e.message}`
+  } finally {
+    loading.value = false
   }
 }
 </script>
