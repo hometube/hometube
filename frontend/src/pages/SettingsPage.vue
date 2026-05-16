@@ -13,6 +13,7 @@ const defaultSettings = {
   autoDownloadVideo: true,
   defaultShuffle: false,
   defaultRepeat: false,
+  showWaveform: true,
   defaultSubQuality: 'best',
 }
 
@@ -177,6 +178,18 @@ const resetApp = () => {
             :class="settings.defaultRepeat ? 'bg-blue-500' : 'bg-gray-600'">
             <div class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
               :class="settings.defaultRepeat ? 'translate-x-6' : 'translate-x-0.5'" />
+          </button>
+        </div>
+        <div class="flex items-center justify-between p-4">
+          <div>
+            <div class="text-sm font-medium">Waveform Visualizer</div>
+            <div class="text-xs text-gray-400">Animated waveform during music playback</div>
+          </div>
+          <button @click="toggle('showWaveform')"
+            class="relative w-12 h-6 rounded-full transition-colors"
+            :class="settings.showWaveform ? 'bg-blue-500' : 'bg-gray-600'">
+            <div class="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+              :class="settings.showWaveform ? 'translate-x-6' : 'translate-x-0.5'" />
           </button>
         </div>
       </div>

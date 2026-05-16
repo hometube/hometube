@@ -33,6 +33,15 @@ const {
   dismissError
 } = musicStore
 
+const showWaveform = computed(() => {
+  try {
+    const settings = JSON.parse(localStorage.getItem('settings') || '{}')
+    return settings.showWaveform !== false
+  } catch {
+    return true
+  }
+})
+
 const onPlaylistPage = computed(() => {
   if (!route.path.startsWith('/music/playlist/')) return false
   const id = route.params.id || route.path.split('/').pop()
@@ -47,7 +56,7 @@ const goToCurrentPlaylist = () => {
 </script>
 
 <template>
-  <WaveformVisual v-if="currentIndex >= 0" :audioElement="audio" :playing="playing" :subtle="!onPlaylistPage" />
+  <WaveformVisual v-if="currentIndex >= 0 && showWaveform" :audioElement="audio" :playing="playing" :subtle="!onPlaylistPage" />
   <div v-if="currentIndex >= 0" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-3 z-[90]">
     <div v-if="playbackError" class="absolute bottom-full h-10 left-0 right-0 z-[100] bg-red-600 text-white text-sm px-4 py-2 rounded-t-lg flex justify-between items-center gap-2">
       <FontAwesomeIcon :icon="['fas', 'exclamation-triangle']" />
