@@ -52,37 +52,37 @@ async function runValidation() {
 
     for (const s of (data.subscriptions || [])) {
       if (!channelIds.has(s.channel_id))
-        issues.push({ check: 'Subscription points to missing channel', severity: 'error', item: s, detail: `sub #${s.id} → channel #${s.channel_id}` })
+        issues.push({ check: 'Subscription points to missing channel', severity: 'error', item: s, detail: `sub #${s.id} → channel #${s.channel_id}`, fix: { type: 'delete', path: `/subscriptions/${s.id}` } })
       if (!userIds.has(s.user_id))
-        issues.push({ check: 'Subscription points to missing user', severity: 'error', item: s, detail: `sub #${s.id} → user #${s.user_id}` })
+        issues.push({ check: 'Subscription points to missing user', severity: 'error', item: s, detail: `sub #${s.id} → user #${s.user_id}`, fix: { type: 'delete', path: `/subscriptions/${s.id}` } })
     }
 
     for (const v of (data.videos || [])) {
       if (!channelIds.has(v.channel_id))
-        issues.push({ check: 'Video references missing channel', severity: 'error', item: v, detail: `video #${v.id} "${v.title}" → channel #${v.channel_id}` })
+        issues.push({ check: 'Video references missing channel', severity: 'error', item: v, detail: `video #${v.id} "${v.title}" → channel #${v.channel_id}`, fix: { type: 'reassign', path: `/videos/${v.id}`, bodyKey: 'channel_id', options: 'channels', deletePath: `/videos/${v.id}` } })
       if (!userIds.has(v.added_by))
-        issues.push({ check: 'Video references missing user', severity: 'error', item: v, detail: `video #${v.id} "${v.title}" → user #${v.added_by}` })
+        issues.push({ check: 'Video references missing user', severity: 'error', item: v, detail: `video #${v.id} "${v.title}" → user #${v.added_by}`, fix: { type: 'reassign', path: `/videos/${v.id}`, bodyKey: 'added_by', options: 'users', deletePath: `/videos/${v.id}` } })
     }
 
     for (const m of (data.music || [])) {
       if (!userIds.has(m.added_by))
-        issues.push({ check: 'Music references missing user', severity: 'error', item: m, detail: `music #${m.id} "${m.title}" → user #${m.added_by}` })
+        issues.push({ check: 'Music references missing user', severity: 'error', item: m, detail: `music #${m.id} "${m.title}" → user #${m.added_by}`, fix: { type: 'reassign', path: `/music/${m.id}`, bodyKey: 'added_by', options: 'users', deletePath: `/music/${m.id}` } })
     }
 
     for (const p of (data.playlists || [])) {
       if (!userIds.has(p.user_id))
-        issues.push({ check: 'Playlist references missing user', severity: 'error', item: p, detail: `playlist #${p.id} "${p.name}" → user #${p.user_id}` })
+        issues.push({ check: 'Playlist references missing user', severity: 'error', item: p, detail: `playlist #${p.id} "${p.name}" → user #${p.user_id}`, fix: { type: 'reassign', path: `/playlists/${p.id}`, bodyKey: 'user_id', options: 'users', deletePath: `/playlists/${p.id}` } })
       for (const song of (p.songs || [])) {
         const mid = song.music_id ?? song
         if (!musicIds.has(mid))
-          issues.push({ check: 'Playlist song references missing music', severity: 'warning', item: p, detail: `playlist #${p.id} "${p.name}" → music #${mid}` })
+          issues.push({ check: 'Playlist song references missing music', severity: 'warning', item: p, detail: `playlist #${p.id} "${p.name}" → music #${mid}`, fix: { type: 'remove_song', path: `/playlists/${p.id}/remove/${mid}` } })
       }
     }
 
     const seenMusicVideoIds = new Map()
     for (const m of (data.music || [])) {
       if (m.video_id && seenMusicVideoIds.has(m.video_id))
-        issues.push({ check: 'Duplicate video_id across music entries', severity: 'info', item: m, detail: `music #${m.id} "${m.title}" duplicates video_id ${m.video_id} (also music #${seenMusicVideoIds.get(m.video_id)})` })
+        issues.push({ check: 'Duplicate video_id across music entries', severity: 'info', item: m, detail: `music #${m.id} "${m.title}" duplicates video_id ${m.video_id} (also music #${seenMusicVideoIds.get(m.video_id)})`, fix: { type: 'delete', path: `/music/${m.id}` } })
       if (m.video_id) seenMusicVideoIds.set(m.video_id, m.id)
     }
 
@@ -97,6 +97,8 @@ async function runValidation() {
       errors: issues.filter(i => i.severity === 'error').length,
       warnings: issues.filter(i => i.severity === 'warning').length,
       info: issues.filter(i => i.severity === 'info').length,
+      users: data.users || [],
+      channels: data.channels || [],
       checks: Object.entries(grouped).map(([name, items]) => ({
         name,
         severity: items.some(i => i.severity === 'error') ? 'error' : items.some(i => i.severity === 'warning') ? 'warning' : 'info',
@@ -109,6 +111,50 @@ async function runValidation() {
   } finally {
     validating.value = false
   }
+}
+
+const fixingIssue = ref(null)
+const fixValue = ref(null)
+const fixError = ref(null)
+
+async function handleFix(issue) {
+  if (!issue.fix) return
+  fixingIssue.value = null
+  fixError.value = null
+  try {
+    const provider = getProvider()
+    const fix = issue.fix
+    if (fix.type === 'delete' || fix.type === 'remove_song') {
+      await provider.delete(fix.path)
+    } else if (fix.type === 'reassign') {
+      if (fixValue.value === null) return
+      await provider.put(fix.path, { [fix.bodyKey]: fixValue.value })
+    }
+    fixValue.value = null
+    await runValidation()
+  } catch (e) {
+    fixError.value = e.message
+  }
+}
+
+async function handleDeleteOnly(path) {
+  fixError.value = null
+  try {
+    await getProvider().delete(path)
+    await runValidation()
+  } catch (e) {
+    fixError.value = e.message
+  }
+}
+
+function openReassign(issue) {
+  fixingIssue.value = issue.detail
+  fixValue.value = null
+}
+
+function cancelReassign() {
+  fixingIssue.value = null
+  fixValue.value = null
 }
 
 onMounted(fetchMetadata)
@@ -213,6 +259,8 @@ onMounted(fetchMetadata)
             <FontAwesomeIcon :icon="['fas', 'check-circle']" class="mr-1" />All checks passed — no issues found.
           </div>
 
+          <div v-if="fixError" class="text-red-400 text-xs mb-2 bg-red-900/30 rounded p-2">{{ fixError }}</div>
+
           <div v-else class="space-y-3 max-h-[75vh] overflow-y-auto">
             <div v-for="check in validation.checks" :key="check.name"
               class="bg-gray-900 rounded-lg p-3 text-xs font-mono">
@@ -223,9 +271,48 @@ onMounted(fetchMetadata)
                 <span class="text-gray-200 font-bold">{{ check.name }}</span>
                 <span class="text-gray-500">({{ check.count }})</span>
               </div>
-              <div v-for="issue in check.items" :key="issue.detail"
-                class="pl-5 text-gray-400 leading-relaxed">
-                {{ issue.detail }}
+              <div v-for="issue in check.items" :key="issue.detail" class="mb-1">
+                <div class="pl-5 text-gray-400 leading-relaxed flex items-start gap-2">
+                  <span class="flex-1 min-w-0 truncate">{{ issue.detail }}</span>
+                  <span class="flex-shrink-0 flex items-center gap-1">
+                    <button v-if="issue.fix?.type === 'delete'" @click="handleDeleteOnly(issue.fix.path)"
+                      class="text-red-400 hover:text-red-300 hover:bg-red-900/30 px-1.5 py-0.5 rounded">
+                      <FontAwesomeIcon :icon="['fas', 'trash']" class="mr-0.5" />Delete
+                    </button>
+                    <button v-if="issue.fix?.type === 'remove_song'" @click="handleFix(issue)"
+                      class="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/30 px-1.5 py-0.5 rounded">
+                      <FontAwesomeIcon :icon="['fas', 'times']" class="mr-0.5" />Remove
+                    </button>
+                    <template v-if="issue.fix?.type === 'reassign'">
+                      <button v-if="fixingIssue !== issue.detail" @click="openReassign(issue)"
+                        class="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                        <FontAwesomeIcon :icon="['fas', 'user-edit']" class="mr-0.5" />Reassign
+                      </button>
+                      <button @click="handleDeleteOnly(issue.fix.deletePath)"
+                        class="text-red-400 hover:text-red-300 hover:bg-red-900/30 px-1.5 py-0.5 rounded">
+                        <FontAwesomeIcon :icon="['fas', 'trash']" class="mr-0.5" />Delete
+                      </button>
+                    </template>
+                  </span>
+                </div>
+                <div v-if="fixingIssue === issue.detail && issue.fix?.type === 'reassign'"
+                  class="pl-5 pt-1 pb-1 flex items-center gap-2">
+                  <select v-model="fixValue"
+                    class="bg-gray-800 text-gray-200 text-xs rounded px-2 py-1 border border-gray-700 max-w-40">
+                    <option :value="null" disabled>Select {{ issue.fix.options === 'users' ? 'user' : 'channel' }}...</option>
+                    <option v-for="opt in (issue.fix.options === 'users' ? validation.users : validation.channels)" :key="opt.id" :value="opt.id">
+                      {{ opt.name || opt.username || `#${opt.id}` }}
+                    </option>
+                  </select>
+                  <button @click="handleFix(issue)" :disabled="fixValue === null"
+                    class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs px-2 py-1 rounded">
+                    Confirm
+                  </button>
+                  <button @click="cancelReassign"
+                    class="text-gray-400 hover:text-gray-300 text-xs px-2 py-1">
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>

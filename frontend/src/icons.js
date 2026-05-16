@@ -10,6 +10,8 @@ import {
   faEye, faBackward, faPlay, faPause,
   faForward, faRedo, faExclamationTriangle,
   faBug, faRotate,
+  faTimesCircle, faInfoCircle, faCheckCircle,
+  faUserEdit,
 } from '@fortawesome/free-solid-svg-icons'
 
 library.add(
@@ -23,4 +25,6 @@ library.add(
   faEye, faBackward, faPlay, faPause,
   faForward, faRedo, faExclamationTriangle,
   faBug, faRotate,
+  faTimesCircle, faInfoCircle, faCheckCircle,
+  faUserEdit,
 )

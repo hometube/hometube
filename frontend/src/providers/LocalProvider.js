@@ -178,9 +178,27 @@ export class LocalProvider extends DataProvider {
     if (match.store === 'playlists' && match.action === 'by_id') {
       const playlist = await this._get('playlists', match.id)
       if (!playlist) throw new Error('Playlist not found')
-      playlist.name = body.name
+      if (body.name !== undefined) playlist.name = body.name
+      if (body.user_id !== undefined) playlist.user_id = body.user_id
       await this._store('playlists', playlist)
       return playlist
+    }
+
+    if (match.store === 'videos' && match.action === 'by_id') {
+      const video = await this._get('videos', match.id)
+      if (!video) throw new Error('Video not found')
+      if (body.channel_id !== undefined) video.channel_id = body.channel_id
+      if (body.added_by !== undefined) video.added_by = body.added_by
+      await this._store('videos', video)
+      return video
+    }
+
+    if (match.store === 'music' && match.action === 'by_id') {
+      const music = await this._get('music', match.id)
+      if (!music) throw new Error('Music not found')
+      if (body.added_by !== undefined) music.added_by = body.added_by
+      await this._store('music', music)
+      return music
     }
 
     throw new Error(`Local mutation not supported for: PUT ${path}`)
@@ -205,6 +223,16 @@ export class LocalProvider extends DataProvider {
 
     if (match.store === 'music' && match.action === 'by_id') {
       await this._delete('music', match.id)
+      return { ok: true }
+    }
+
+    if (match.store === 'subscriptions' && match.action === 'by_id') {
+      await this._delete('subscriptions', match.id)
+      return { ok: true }
+    }
+
+    if (match.store === 'videos' && match.action === 'by_id') {
+      await this._delete('videos', match.id)
       return { ok: true }
     }
 

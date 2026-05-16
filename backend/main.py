@@ -116,6 +116,17 @@ class VideoWatch(BaseModel):
 class VideoKeep(BaseModel):
     keep: bool = True
 
+class VideoUpdate(BaseModel):
+    channel_id: Optional[int] = None
+    added_by: Optional[int] = None
+
+class MusicUpdate(BaseModel):
+    added_by: Optional[int] = None
+
+class PlaylistUpdate(BaseModel):
+    name: Optional[str] = None
+    user_id: Optional[int] = None
+
 class ExportRequest(BaseModel):
     type: str = "all"
     user_id: Optional[int] = None
@@ -377,6 +388,15 @@ def subscribe(chan_id: int, data: SubscribeReq, token_valid: bool = Depends(veri
     db.commit()
     return {"ok": True}
 
+@app.delete("/api/subscriptions/{sub_id}")
+def delete_subscription(sub_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    sub = db.query(models.Subscription).filter(models.Subscription.id == sub_id).first()
+    if not sub:
+        raise HTTPException(404)
+    db.delete(sub)
+    db.commit()
+    return {"ok": True}
+
 # Videos
 @app.post("/api/videos/add")
 def add_video(data: VideoAdd, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
@@ -439,6 +459,37 @@ def get_video_qualities(vid_id: int, token_valid: bool = Depends(verify_token), 
 def get_video_info_by_url(url: str, token_valid: bool = Depends(verify_token)):
     return ytdlp.get_available_formats(url)
 
+@app.put("/api/videos/{vid_id}")
+def update_video(vid_id: int, data: VideoUpdate, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
+    if not vid:
+        raise HTTPException(404)
+    if data.channel_id is not None:
+        chan = db.query(models.Channel).filter(models.Channel.id == data.channel_id).first()
+        if not chan:
+            raise HTTPException(400, "Channel not found")
+        vid.channel_id = data.channel_id
+    if data.added_by is not None:
+        user = db.query(models.User).filter(models.User.id == data.added_by).first()
+        if not user:
+            raise HTTPException(400, "User not found")
+        vid.added_by = data.added_by
+    db.commit()
+    return vid
+
+@app.delete("/api/videos/{vid_id}")
+def delete_video(vid_id: int, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    vid = db.query(models.Video).filter(models.Video.id == vid_id).first()
+    if not vid:
+        raise HTTPException(404)
+    if vid.downloaded and vid.video_id:
+        fname = f"data/downloads/videos/{vid.video_id}.mp4"
+        if os.path.exists(fname):
+            os.remove(fname)
+    db.delete(vid)
+    db.commit()
+    return {"ok": True}
+
 # Playlists
 @app.get("/api/playlists")
 def list_playlists(user_id: int = None, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
@@ -476,11 +527,17 @@ def remove_from_playlist(playlist_id: int, music_id: int, token_valid: bool = De
     return {"ok": True}
 
 @app.put("/api/playlists/{playlist_id}")
-def rename_playlist(playlist_id: int, data: PlaylistRename, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+def update_playlist(playlist_id: int, data: PlaylistUpdate, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
     playlist = db.query(models.Playlist).filter(models.Playlist.id == playlist_id).first()
     if not playlist:
         raise HTTPException(404)
-    playlist.name = data.name
+    if data.name is not None:
+        playlist.name = data.name
+    if data.user_id is not None:
+        user = db.query(models.User).filter(models.User.id == data.user_id).first()
+        if not user:
+            raise HTTPException(400, "User not found")
+        playlist.user_id = data.user_id
     db.commit()
     return playlist
 
@@ -702,6 +759,19 @@ def delete_music(music_id: int, token_valid: bool = Depends(verify_token), db: S
     db.delete(music)
     db.commit()
     return {"ok": True}
+
+@app.put("/api/music/{music_id}")
+def update_music(music_id: int, data: MusicUpdate, token_valid: bool = Depends(verify_token), db: Session = Depends(get_db)):
+    music = db.query(models.Music).filter(models.Music.id == music_id).first()
+    if not music:
+        raise HTTPException(404)
+    if data.added_by is not None:
+        user = db.query(models.User).filter(models.User.id == data.added_by).first()
+        if not user:
+            raise HTTPException(400, "User not found")
+        music.added_by = data.added_by
+    db.commit()
+    return music
 
 # Export / Import
 def serialize_row(obj):
