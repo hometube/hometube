@@ -315,6 +315,20 @@ export class LocalProvider extends DataProvider {
     console.warn('[LocalProvider] cache() is not supported in local mode — no backend to fetch from', { path, options })
   }
 
+  async getMetadata() {
+    return {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      users: await this._getAll('users'),
+      channels: await this._getAll('channels'),
+      subscriptions: await this._getAll('subscriptions'),
+      videos: await this._getAll('videos'),
+      music: await this._getAll('music'),
+      playlists: await this._getAll('playlists'),
+      settings: await this._getAll('settings'),
+    }
+  }
+
   async exportData(body = {}) {
     const metadata = {
       version: 1,

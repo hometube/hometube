@@ -31,12 +31,14 @@ const mode = computed(() => {
   if (route.path.startsWith('/video')) return 'video'
   if (route.path.startsWith('/music')) return 'music'
   if (route.path === '/export' || route.path === '/import') return 'data'
+  if (route.path === '/settings' || route.path === '/debug') return 'settings'
   return 'setup'
 })
 const modeLabel = computed(() => {
   if (mode.value === 'video') return 'Video'
   if (mode.value === 'music') return 'Music'
   if (mode.value === 'data') return 'Data'
+  if (mode.value === 'settings') return 'Settings'
   return 'Setup'
 })
 const hideNavbar = computed(() => mode.value === 'setup')
@@ -175,8 +177,8 @@ onUnmounted(() => {
 
     <router-view />
 
-    <!-- Global Music Player -->
-    <GlobalMusicPlayer />
+    <!-- Global Music Player (hidden on settings/debug) -->
+    <GlobalMusicPlayer v-if="mode !== 'settings'" />
 
     <!-- Backend Configuration -->
     <BackendMenu ref="backendMenu" />

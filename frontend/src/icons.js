@@ -9,6 +9,7 @@ import {
   faSpinner, faFileArchive, faTrash,
   faEye, faBackward, faPlay, faPause,
   faForward, faRedo, faExclamationTriangle,
+  faBug, faRotate,
 } from '@fortawesome/free-solid-svg-icons'
 
 library.add(
@@ -21,4 +22,5 @@ library.add(
   faSpinner, faFileArchive, faTrash,
   faEye, faBackward, faPlay, faPause,
   faForward, faRedo, faExclamationTriangle,
+  faBug, faRotate,
 )

@@ -76,13 +76,7 @@ const resetApp = () => {
 </script>
 
 <template>
-  <div class="p-4 pt-16">
-    <div class="flex items-center gap-3 mb-6">
-      <button @click="router.back()" class="text-gray-400">
-        <FontAwesomeIcon :icon="['fas', 'arrow-left']" />
-      </button>
-      <h2 class="text-xl font-bold">Settings</h2>
-    </div>
+  <div class="p-4 pt-14">
 
     <div class="mb-4">
       <div class="text-xs text-gray-500 uppercase mb-2">Mode</div>
@@ -206,7 +200,15 @@ const resetApp = () => {
 
     <div class="mb-4">
       <div class="text-xs text-gray-500 uppercase mb-2">App</div>
-      <div class="bg-gray-800 rounded-lg">
+      <div class="bg-gray-800 rounded-lg divide-y divide-gray-700">
+        <button @click="router.push('/debug')"
+          class="w-full flex items-center justify-between p-4 hover:bg-gray-750 rounded-t-lg">
+          <div>
+            <div class="text-sm font-medium">Debug View</div>
+            <div class="text-xs text-gray-400">Inspect full database contents as JSON</div>
+          </div>
+          <FontAwesomeIcon :icon="['fas', 'bug']" class="text-gray-400" />
+        </button>
         <button @click="resetApp"
           class="w-full flex items-center justify-between p-4 hover:bg-gray-750 rounded-lg">
           <div>

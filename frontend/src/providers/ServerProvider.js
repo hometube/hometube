@@ -1,4 +1,5 @@
 import { DataProvider } from './DataProvider.js'
+import JSZip from 'jszip'
 
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 const BASE_HEADERS = { 'ngrok-skip-browser-warning': 'true' }
@@ -216,6 +217,20 @@ export class ServerProvider extends DataProvider {
         URL.revokeObjectURL(blobUrl)
       })
       .catch(err => console.error('[ServerProvider] Download failed:', err))
+  }
+
+  async getMetadata() {
+    await swReady
+    const headers = { ...this._getHeaders(), 'Content-Type': 'application/json' }
+    const res = await fetch(this._buildUrl('/export'), {
+      method: 'POST', headers, body: JSON.stringify({ type: 'all' })
+    })
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+    const blob = await res.blob()
+    const zip = await JSZip.loadAsync(blob)
+    const metaFile = zip.file('metadata.json')
+    const text = await metaFile.async('string')
+    return JSON.parse(text)
   }
 
   async exportData(body = {}) {

@@ -39,6 +39,7 @@ export class DataProvider {
     return url
   }
 
+  async getMetadata() { throw new Error('abstract') }
   async exportData(body) { throw new Error('abstract') }
   async importData(file) { throw new Error('abstract') }
 
