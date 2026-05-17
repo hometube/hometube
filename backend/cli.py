@@ -8,6 +8,7 @@ Usage:
   ht login <user>         Switch active user (creates if not exists)
   ht download <url>       Download video/music/playlist
   ht export               Export .ht file for active user
+  ht export --playlist <id_or_name>  Export a specific playlist
   ht import <file.ht>        Import .ht archive
   ht import --music <folder>  Import music files from local folder
   ht songs                List music for active user
@@ -469,9 +470,20 @@ def cmd_export(args):
         q = db.query(Music).filter(Music.added_by == user.id)
         if date_from:
             q = q.filter(Music.created_at >= date_from)
-        metadata["music"] = [serialize_row(m) for m in q.all()]
+        music_rows = q.all()
+        metadata["music"] = [serialize_row(m) for m in music_rows]
 
-        metadata["playlists"] = [serialize_row(p) for p in db.query(Playlist).filter(Playlist.user_id == user.id).all()]
+        playlist_rows = db.query(Playlist).filter(Playlist.user_id == user.id).all()
+        metadata["playlists"] = [serialize_row(p) for p in playlist_rows]
+
+        if args.playlist:
+            playlist = _resolve_playlist(db, user.id, args.playlist)
+            if not playlist:
+                print(f"Error: Playlist not found: {args.playlist}", file=sys.stderr)
+                sys.exit(1)
+            song_ids = {s["music_id"] for s in (playlist.songs or [])}
+            metadata["music"] = [m for m in metadata["music"] if m["id"] in song_ids]
+            metadata["playlists"] = [serialize_row(playlist)]
 
         metadata["settings"] = [serialize_row(s) for s in db.query(Setting).all()]
 
@@ -1032,6 +1044,7 @@ def main():
     export_p.add_argument("--day", action="store_true", help="Last 24 hours only")
     export_p.add_argument("--week", action="store_true", help="Last 7 days only")
     export_p.add_argument("--month", action="store_true", help="Last 30 days only")
+    export_p.add_argument("--playlist", "-p", help="Export only songs from a specific playlist (ID or name)")
 
     import_p = sub.add_parser("import", help="Import .ht archive or music files from a folder")
     import_p.add_argument("file", nargs="?", help="Path to .ht file or music folder (with --music)")

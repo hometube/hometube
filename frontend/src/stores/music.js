@@ -131,7 +131,6 @@ export const useMusicStore = defineStore('music', () => {
   let audioContext = null
   let analyser = null
   let dataArray = null
-  let mediaSourceCreated = false
 
   // BPM detection
   const bpm = ref(0)
@@ -188,17 +187,10 @@ export const useMusicStore = defineStore('music', () => {
       analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
       dataArray = new Uint8Array(analyser.frequencyBinCount)
-    }
-    if (audio.value && !mediaSourceCreated && audioContext.state !== 'closed') {
-      try {
-        const source = audioContext.createMediaElementSource(audio.value)
-        source.connect(analyser)
-        analyser.connect(audioContext.destination)
-        mediaSourceCreated = true
-      } catch (e) {
-        // MediaElementSource already connected from elsewhere
-        mediaSourceCreated = true
-      }
+      const osc = audioContext.createOscillator()
+      osc.frequency.value = 220
+      osc.connect(analyser)
+      osc.start()
     }
     resumeAudioContext()
     return { analyser, dataArray, audioContext }
@@ -295,6 +287,7 @@ export const useMusicStore = defineStore('music', () => {
             playing.value = false
           })
           playing.value = true
+          acquireWakeLock()
           updateMediaSession(song)
         }
       }
@@ -306,12 +299,44 @@ export const useMusicStore = defineStore('music', () => {
     }
   }
 
+  let wakeLock = null
+
+  const releaseWakeLock = () => {
+    if (wakeLock) {
+      try { wakeLock.release() } catch {}
+      wakeLock = null
+    }
+  }
+
+  const acquireWakeLock = async () => {
+    if ('wakeLock' in navigator && !wakeLock) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen')
+        wakeLock.addEventListener('release', () => {
+          wakeLock = null
+          if (playing.value) acquireWakeLock()
+        })
+      } catch {}
+    }
+  }
+
   const init = () => {
     if (initialized.value) return
     initialized.value = true
     audio.value = new Audio()
+    audio.value.autoplay = true
 
     window.addEventListener('beforeunload', saveState)
+    window.addEventListener('pagehide', saveState)
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        resumeAudioContext()
+        if (playing.value) acquireWakeLock()
+      } else {
+        saveState()
+      }
+    })
 
     if ('mediaSession' in navigator) {
       navigator.mediaSession.setActionHandler('play', () => {
@@ -336,6 +361,7 @@ export const useMusicStore = defineStore('music', () => {
         playSong(idx)
       } else {
         playing.value = false
+        releaseWakeLock()
         saveState()
       }
     })
@@ -417,6 +443,7 @@ export const useMusicStore = defineStore('music', () => {
     const song = displaySongs.value[index]
     if (!song) return
     playing.value = true
+    acquireWakeLock()
 
     if (audio.value && reloadAudio) {
       currentTime.value = 0
@@ -464,10 +491,12 @@ export const useMusicStore = defineStore('music', () => {
     playing.value = !playing.value
     if (playing.value) {
       resumeAudioContext()
+      acquireWakeLock()
       audio.value.play().catch(() => {
         playing.value = false
       })
     } else {
+      releaseWakeLock()
       audio.value.pause()
     }
   }
@@ -545,6 +574,7 @@ export const useMusicStore = defineStore('music', () => {
     }
     playing.value = false
     currentIndex.value = -1
+    releaseWakeLock()
   }
 
   const formatTime = (seconds) => {
