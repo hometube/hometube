@@ -17,6 +17,14 @@ export const useMusicStore = defineStore('music', () => {
   const duration = ref(0)
   const initialized = ref(false)
   const playbackError = ref(null)
+  const debug = ref([])
+  const MAX_DEBUG = 200
+  const dbg = (msg, data) => {
+    const entry = { t: Date.now(), m: msg, d: data }
+    debug.value.push(entry)
+    if (debug.value.length > MAX_DEBUG) debug.value.splice(0, debug.value.length - MAX_DEBUG)
+    console.log(`[MusicDBG] ${msg}`, data ?? '')
+  }
 
   const updateMediaSession = (song) => {
     if (!('mediaSession' in navigator)) return
@@ -211,15 +219,17 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   const restoreState = async () => {
+    dbg('restoreState: start')
     const saved = localStorage.getItem('musicPlayerState')
-    if (!saved) return false
+    if (!saved) { dbg('restoreState: no saved state'); return false }
 
     try {
       const state = JSON.parse(saved)
-      if (!state.playlistId || state.currentIndex < 0) return false
+      dbg('restoreState: loaded state', { playlistId: state.playlistId, currentIndex: state.currentIndex, playing: state.playing })
+      if (!state.playlistId || state.currentIndex < 0) { dbg('restoreState: invalid state'); return false }
 
       const user = JSON.parse(localStorage.getItem('user') || 'null')
-      if (!user || !user.id) return false
+      if (!user || !user.id) { dbg('restoreState: no user'); return false }
 
       let pl = null
       let songs = []
@@ -244,7 +254,7 @@ export const useMusicStore = defineStore('music', () => {
         }
       }
 
-      if (!pl || songs.length === 0) return false
+      if (!pl || songs.length === 0) { dbg('restoreState: playlist/songs not found'); return false }
 
       playlist.value = pl
       playlistId.value = state.playlistId
@@ -269,11 +279,10 @@ export const useMusicStore = defineStore('music', () => {
 
       if (audio.value && currentIndex.value >= 0 && displaySongs.value[currentIndex.value]) {
         const song = displaySongs.value[currentIndex.value]
+        dbg('restoreState: loading song', { title: song.title, currentTime: state.currentTime })
         const url = await API.getMusicUrl(song)
         if (!url) {
-          console.warn('[MusicStore] restoreState: no URL for saved song', {
-            songId: song.id, title: song.title, filename: song.filename, video_id: song.video_id
-          })
+          dbg('restoreState: no URL for song', { songId: song.id, title: song.title })
           return false
         }
         audio.value.src = url
@@ -283,8 +292,11 @@ export const useMusicStore = defineStore('music', () => {
         duration.value = state.duration || 0
 
         if (state.playing) {
-          audio.value.play().catch(() => {
+          dbg('restoreState: resuming playback')
+          audio.value.play().catch((err) => {
+            dbg('restoreState: play() rejected', { message: err?.message, name: err?.name })
             playing.value = false
+            releaseWakeLock()
           })
           playing.value = true
           acquireWakeLock()
@@ -292,9 +304,10 @@ export const useMusicStore = defineStore('music', () => {
         }
       }
 
+      dbg('restoreState: done')
       return true
     } catch (e) {
-      console.error('Failed to restore music player state:', e)
+      dbg('restoreState: error', e?.message)
       return false
     }
   }
@@ -303,20 +316,31 @@ export const useMusicStore = defineStore('music', () => {
 
   const releaseWakeLock = () => {
     if (wakeLock) {
-      try { wakeLock.release() } catch {}
+      dbg('wakelock releasing')
+      try { wakeLock.release() } catch (e) { dbg('wakelock release error', e?.message) }
       wakeLock = null
     }
   }
 
   const acquireWakeLock = async () => {
-    if ('wakeLock' in navigator && !wakeLock) {
+    if ('wakeLock' in navigator) {
+      if (wakeLock) { dbg('wakelock already held'); return }
       try {
         wakeLock = await navigator.wakeLock.request('screen')
+        dbg('wakelock acquired')
         wakeLock.addEventListener('release', () => {
+          dbg('wakelock released by system')
           wakeLock = null
-          if (playing.value) acquireWakeLock()
+          if (playing.value) {
+            dbg('wakelock re-acquiring (was playing)')
+            acquireWakeLock()
+          }
         })
-      } catch {}
+      } catch (e) {
+        dbg('wakelock acquire failed', e?.message || e?.name)
+      }
+    } else {
+      dbg('wakelock not supported')
     }
   }
 
@@ -325,64 +349,134 @@ export const useMusicStore = defineStore('music', () => {
     initialized.value = true
     audio.value = new Audio()
     audio.value.autoplay = true
+    dbg('init: audio element created')
 
-    window.addEventListener('beforeunload', saveState)
-    window.addEventListener('pagehide', saveState)
+    window.addEventListener('beforeunload', () => { dbg('beforeunload'); saveState() })
+    window.addEventListener('pagehide', () => { dbg('pagehide'); saveState() })
 
     document.addEventListener('visibilitychange', () => {
+      dbg('visibilitychange', document.visibilityState)
       if (document.visibilityState === 'visible') {
         resumeAudioContext()
-        if (playing.value) acquireWakeLock()
+        if (playing.value) {
+          dbg('visibility: visible, was playing — re-acquiring wakelock')
+          acquireWakeLock()
+        }
       } else {
         saveState()
       }
     })
 
     if ('mediaSession' in navigator) {
+      dbg('init: setting up Media Session handlers')
       navigator.mediaSession.setActionHandler('play', () => {
-        if (!playing.value) togglePlay()
+        dbg('mediaSession: play action')
+        if (!playing.value) {
+          togglePlay()
+        } else if (audio.value?.paused) {
+          dbg('mediaSession: play — system paused, force-resuming')
+          resumeAudioContext()
+          acquireWakeLock()
+          audio.value.play().catch((err) => {
+            dbg('mediaSession: play — force resume failed', err?.message)
+          })
+        }
       })
       navigator.mediaSession.setActionHandler('pause', () => {
+        dbg('mediaSession: pause action')
         if (playing.value) togglePlay()
       })
-      navigator.mediaSession.setActionHandler('nexttrack', () => next())
-      navigator.mediaSession.setActionHandler('previoustrack', () => prev())
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        dbg('mediaSession: nexttrack action')
+        next()
+      })
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        dbg('mediaSession: previoustrack action')
+        prev()
+      })
       navigator.mediaSession.setActionHandler('seekto', (details) => {
+        dbg('mediaSession: seekto', details.seekTime)
         if (details.seekTime && audio.value) {
           audio.value.currentTime = details.seekTime
         }
       })
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        dbg('mediaSession: seekforward')
+        if (audio.value) audio.value.currentTime = Math.min(audio.value.currentTime + 10, audio.value.duration || Infinity)
+      })
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        dbg('mediaSession: seekbackward')
+        if (audio.value) audio.value.currentTime = Math.max(audio.value.currentTime - 10, 0)
+      })
+    } else {
+      dbg('init: Media Session NOT available')
     }
 
     audio.value.addEventListener('ended', () => {
+      dbg('audio: ended')
       resumeAudioContext()
       const idx = findNextIndex(true)
       if (idx >= 0) {
+        dbg('audio: ended -> playing next', idx)
         playSong(idx)
       } else {
+        dbg('audio: ended -> queue empty')
         playing.value = false
         releaseWakeLock()
         saveState()
       }
     })
     audio.value.addEventListener('loadedmetadata', () => {
+      dbg('audio: loadedmetadata', { duration: audio.value.duration })
       duration.value = audio.value.duration
       playbackError.value = null
       updatePositionState()
     })
-    audio.value.addEventListener('error', () => {
+    audio.value.addEventListener('error', (e) => {
+      const err = audio.value?.error
+      dbg('audio: error', { code: err?.code, message: err?.message, src: audio.value?.src?.slice(0, 80) })
       playing.value = false
       currentTime.value = 0
       duration.value = 0
-      playbackError.value = 'Failed to load song'
+      playbackError.value = err?.message || 'Failed to load song'
     })
     audio.value.addEventListener('play', () => {
+      dbg('audio: play event')
       playbackError.value = null
+    })
+    audio.value.addEventListener('pause', () => {
+      dbg('audio: pause event', { wasPlaying: playing.value })
+      if (playing.value) {
+        dbg('audio: system pause detected (likely screen lock), updating state')
+        playing.value = false
+        saveState()
+      }
+    })
+    audio.value.addEventListener('stalled', () => {
+      dbg('audio: stalled')
+    })
+    audio.value.addEventListener('waiting', () => {
+      dbg('audio: waiting')
+    })
+    audio.value.addEventListener('canplay', () => {
+      dbg('audio: canplay')
     })
     audio.value.addEventListener('timeupdate', () => {
       currentTime.value = audio.value.currentTime
       updatePositionState()
     })
+    audio.value.addEventListener('playing', () => {
+      dbg('audio: playing event')
+    })
+    audio.value.addEventListener('suspend', () => {
+      dbg('audio: suspend')
+    })
+
+    window.__musicDebug = () => ({ log: debug.value, playing: playing.value, paused: audio.value?.paused,
+      currentTime: currentTime.value, duration: duration.value, currentIndex: currentIndex.value,
+      wakeLockHeld: !!wakeLock, audioContextState: audioContext?.state })
+    window.__musicDebugClear = () => { debug.value = [] }
+    dbg('init complete: debug helpers available via window.__musicDebug()')
   }
 
   const loadSettings = () => { try { return JSON.parse(localStorage.getItem('settings') || '{}') } catch { return {} } }
@@ -429,6 +523,7 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   const playSong = async (index, reloadAudio = true) => {
+    dbg('playSong', { index, reloadAudio, title: displaySongs.value[index]?.title })
     if (!Object.keys(downloadedCache.value).length) {
       await checkDownloaded(displaySongs.value)
     }
@@ -441,7 +536,7 @@ export const useMusicStore = defineStore('music', () => {
     currentIndex.value = index
 
     const song = displaySongs.value[index]
-    if (!song) return
+    if (!song) { dbg('playSong: no song at index'); return }
     playing.value = true
     acquireWakeLock()
 
@@ -455,19 +550,18 @@ export const useMusicStore = defineStore('music', () => {
           ? 'missing filename and video_id'
           : 'no matching file blob in local storage'
         playbackError.value = `Cannot play "${song.title || 'Unknown'}": ${reason}`
-        console.warn('[MusicStore] playSong: no URL available for song', {
-          songId: song.id, title: song.title, artist: song.artist,
-          filename: song.filename, video_id: song.video_id,
-          downloaded: song.downloaded, reason
-        })
+        dbg('playSong: no URL', { songId: song.id, title: song.title, reason })
         return
       }
+      dbg('playSong: setting src', url.slice(0, 80))
       audio.value.src = url
       audio.value.load()
     }
     resumeAudioContext()
-    audio.value.play().catch(() => {
+    audio.value.play().catch((err) => {
+      dbg('playSong: play() rejected', { message: err?.message, name: err?.name })
       playing.value = false
+      releaseWakeLock()
       return
     })
 
@@ -487,32 +581,37 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   const togglePlay = () => {
-    if (!audio.value) return
+    if (!audio.value) { dbg('togglePlay: no audio element'); return }
     playing.value = !playing.value
+    dbg('togglePlay', { nowPlaying: playing.value, paused: audio.value.paused })
     if (playing.value) {
       resumeAudioContext()
       acquireWakeLock()
-      audio.value.play().catch(() => {
+      audio.value.play().catch((err) => {
+        dbg('togglePlay: play() rejected', { message: err?.message, name: err?.name })
         playing.value = false
+        releaseWakeLock()
       })
     } else {
-      releaseWakeLock()
       audio.value.pause()
+      releaseWakeLock()
     }
   }
 
   const next = () => {
+    dbg('next')
     const idx = findNextIndex(true)
-    if (idx >= 0) playSong(idx)
+    if (idx >= 0) playSong(idx); else dbg('next: no next song')
   }
 
   const prev = () => {
+    dbg('prev', { currentTime: audio.value?.currentTime })
     if (audio.value && audio.value.currentTime > 3) {
       audio.value.currentTime = 0
       return
     }
     const idx = findNextIndex(false)
-    if (idx >= 0) playSong(idx)
+    if (idx >= 0) playSong(idx); else dbg('prev: no prev song')
   }
 
   const toggleRepeat = () => { repeat.value = !repeat.value }
@@ -568,6 +667,7 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   const stop = () => {
+    dbg('stop')
     if (audio.value) {
       audio.value.pause()
       audio.value.src = ''
@@ -593,7 +693,12 @@ export const useMusicStore = defineStore('music', () => {
     return title.replace(/\s*\[[^\]]+\]\s*$/, '')
   }
 
+  const clearDebug = () => { debug.value = [] }
+
   return {
+    debug,
+    getDebugLog: () => debug.value,
+    clearDebug,
     audio,
     playlist,
     playlistId,

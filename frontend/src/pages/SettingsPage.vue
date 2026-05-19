@@ -3,6 +3,9 @@ import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { isLocalMode, setLocalMode, setServerMode, getModeName } from '../api.js'
+import { useMusicStore } from '../stores/music.js'
+
+const musicStore = useMusicStore()
 
 const router = useRouter()
 
@@ -61,6 +64,15 @@ const switchMode = () => {
     setLocalMode(true)
   }
   window.location.reload()
+}
+
+const showDebug = ref(false)
+const debugLog = computed(() => musicStore.getDebugLog())
+const musicDebug = computed(() => musicStore.debug)
+
+const fmtTime = (ts) => {
+  const d = new Date(ts)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}.${d.getMilliseconds().toString().padStart(3, '0')}`
 }
 
 const resetApp = () => {
@@ -207,6 +219,47 @@ const resetApp = () => {
             class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
             <option v-for="o in qualityOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
           </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-xs text-gray-500 uppercase mb-2">Debug</div>
+      <div class="bg-gray-800 rounded-lg">
+        <button @click="showDebug = !showDebug"
+          class="w-full flex items-center justify-between p-4 hover:bg-gray-750 rounded-lg">
+          <div>
+            <div class="text-sm font-medium">Music Player Debug</div>
+            <div class="text-xs text-gray-400">
+              {{ debugLog.length }} events logged
+              · playing={{ musicStore.playing }} paused={{ musicStore.audio?.paused }}
+            </div>
+          </div>
+          <FontAwesomeIcon :icon="['fas', showDebug ? 'chevron-up' : 'bug']" class="text-gray-400" />
+        </button>
+        <div v-if="showDebug" class="border-t border-gray-700">
+          <div class="p-2 flex gap-2 border-b border-gray-700">
+            <button @click="musicStore.clearDebug()"
+              class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs">Clear</button>
+            <button @click="window.__musicDebugClear?.()"
+              class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs">Clear (global)</button>
+          </div>
+          <div class="max-h-64 overflow-y-auto p-2 space-y-0.5 font-mono text-[10px] leading-tight">
+            <div v-for="(e, i) in debugLog.slice().reverse()" :key="i"
+              class="hover:bg-gray-750 px-1 py-0.5 rounded"
+              :class="e.m.includes('error') || e.m.includes('fail') || e.m.includes('rejected') ? 'text-red-400' :
+                     e.m.includes('acquired') || e.m.includes('play') ? 'text-green-400' :
+                     e.m.includes('release') || e.m.includes('stop') ? 'text-yellow-400' : 'text-gray-300'">
+              <span class="text-gray-500">{{ fmtTime(e.t) }}</span>
+              <span class="ml-1">{{ e.m }}</span>
+              <span v-if="e.d" class="text-gray-500 ml-1">{{ JSON.stringify(e.d) }}</span>
+            </div>
+            <div v-if="debugLog.length === 0" class="text-gray-500 text-center py-2">No events logged</div>
+          </div>
+          <div class="p-2 border-t border-gray-700 text-[10px] text-gray-500">
+            navigator.wakeLock: {{ 'wakeLock' in navigator }}
+            · AudioContext.state: {{ musicStore.getAnalyser?.().audioContext?.state ?? 'N/A' }}
+          </div>
         </div>
       </div>
     </div>
